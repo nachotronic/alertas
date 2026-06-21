@@ -14,6 +14,7 @@ import sys
 
 TAULES = {"constituides": "13896", "cancelades": "13902"}
 N_PERIODES = 12
+N_FETCH = 24  # Descarreguem més períodes per assegurar cobertura
 OUTPUT_FILE = "hipoteques_idescat.xlsx"
 
 # Ordre exacte desitjat: (prefix_tipus_finca, mesura, nom_visible)
@@ -104,13 +105,12 @@ def construir_files(index_const, index_canc, geo_text):
     for d in list(index_canc.values()):
         periodes.update(d.keys())
     periodes = sorted(periodes, reverse=True)[:N_PERIODES]
+    periodes = sorted(periodes)  # ordre creixent per a l'Excel
 
     # Debug: mostrar períodes i una mostra de dades
     print(f"  Períodes trobats: {periodes[:3]}")
     clau_test = ('Total fincas', 'Número de hipotecas')
     print(f"  Mostra Total fincas/Número: {dict(list(index_const.get(clau_test, {}).items())[:3])}")
-    clau_canc = ('Total fincas', 'cancelada')
-    print(f"  Mostra cancel·lades: {dict(list(index_canc.get(clau_canc, {}).items())[:3])}")
 
     # Definir columnes en ordre
     columnes = []
@@ -176,8 +176,8 @@ def escriure_pestanya(ws, caps, files):
 def main():
     print("Descarregant dades del INE...")
     try:
-        dades_const = fetch_taula(TAULES["constituides"], N_PERIODES)
-        dades_canc  = fetch_taula(TAULES["cancelades"],   N_PERIODES)
+        dades_const = fetch_taula(TAULES["constituides"], N_FETCH)
+        dades_canc  = fetch_taula(TAULES["cancelades"],   N_FETCH)
     except Exception as e:
         print(f"ERROR descàrrega: {e}")
         sys.exit(1)
