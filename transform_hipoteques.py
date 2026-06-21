@@ -123,6 +123,11 @@ def construir_files(index_const, index_canc, geo_text):
         periodes.update(d.keys())
     periodes = sorted(periodes, reverse=True)[:N_PERIODES]
 
+    # Debug: mostrar períodes i una mostra de dades
+    print(f"  Períodes trobats: {periodes[:3]}")
+    clau_test = ('Total fincas', 'Número de hipotecas')
+    print(f"  Mostra Total fincas/Número: {dict(list(index_const.get(clau_test, {}).items())[:3])}")
+
     # Definir columnes en ordre
     columnes = []
     for tipus, mesura, nom_visible in ORDRE_CONST:
