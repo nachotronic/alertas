@@ -44,23 +44,25 @@ jobs:
               mes_inv = {v: k for k, v in mes_ca.items()}
               seccio = re.search(r'Hipotecas Mensual.*?(?=\n- [A-Z])', html, re.DOTALL)
               if seccio:
-                  dates = re.findall(r'\|\s*(\d+)\s*\|\s*(\w+)\s*\|\s*(\d{4})', seccio.group(0))
-                  dates_trobades = []
-                  for dia, mes_str, any_str in dates:
-                      mes_num = mes_inv.get(mes_str)
+                  # Extreure dia | mes | periode_ref de cada fila
+                  files = re.findall(r'\|\s*(\d+)\s*\|\s*(\w+)\s*\|\s*([^|\n]+?)\s*\|', seccio.group(0))
+                  entrades = []
+                  for dia, mes_str, periode_ref in files:
+                      mes_num = mes_inv.get(mes_str.strip())
                       if mes_num:
                           try:
-                              d = datetime.date(int(any_str), mes_num, int(dia))
-                              dates_trobades.append(d)
+                              d = datetime.date(2026, mes_num, int(dia))
+                              entrades.append((d, periode_ref.strip()))
                           except:
                               pass
-                  dates_trobades.sort()
-                  futures = [d for d in dates_trobades if d >= avui]
+                  entrades.sort(key=lambda x: x[0])
+                  futures = [(d, p) for d, p in entrades if d >= avui]
                   if futures:
-                      proper_publicacio = futures[0].isoformat()
-                      toca = futures[0] == avui
+                      proper_publicacio = futures[0][0].isoformat()
+                      proper_periode_ref = futures[0][1]
+                      toca = futures[0][0] == avui
                       calendari_ok = True
-                      print(f"Calendari OK. Proxima: {proper_publicacio} (avui={toca})")
+                      print(f"Calendari OK. Proxima: {proper_publicacio} ({proper_periode_ref}) (avui={toca})")
                   else:
                       print("Calendari llegit pero sense dates futures")
               else:
@@ -102,6 +104,10 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"toca={'true' if toca else 'false'}\n")
               f.write(f"proper_publicacio={proper_publicacio or ''}\n")
+              try:
+                  f.write(f"proper_periode_ref={proper_periode_ref}\n")
+              except:
+                  f.write("proper_periode_ref=\n")
           PYEOF
 
       - name: Actualitzar data publicació al status.json
@@ -123,12 +129,15 @@ jobs:
           entrada = next((f for f in status["fonts"] if f["id"] == "hipoteques"), None)
           if entrada:
               entrada["proper_publicacio"] = proper + "T09:00:00Z"
+              if os.environ.get("PROPER_PERIODE_REF"):
+                  entrada["proper_periode_ref"] = os.environ.get("PROPER_PERIODE_REF")
               with open("docs/status.json", "w") as f:
                   json.dump(status, f, ensure_ascii=False, indent=2)
               print(f"Data publicació actualitzada: {proper}")
           PYEOF
         env:
           PROPER_PUB: ${{ steps.calendari.outputs.proper_publicacio }}
+          PROPER_PERIODE_REF: ${{ steps.calendari.outputs.proper_periode_ref }}
 
       - name: Comprovar si hi ha dades noves
         id: novedades
