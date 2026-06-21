@@ -2,7 +2,7 @@ name: Hipoteques INE
 
 on:
   schedule:
-    - cron: '10 8 * * *'
+    - cron: '0,5,10,15,20,25,30,35,40,45,50,55 8 * * *'
   workflow_dispatch:
 
 permissions:
@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repositori
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Configurar Python
@@ -22,7 +22,7 @@ jobs:
           python-version: '3.11'
 
       - name: Instal·lar dependències
-        run: pip install requests pandas openpyxl
+        run: pip install requests openpyxl
 
       - name: Comprovar calendari INE
         id: calendari
@@ -31,109 +31,178 @@ jobs:
           import urllib.request, datetime, re, os
 
           avui = datetime.date.today()
-          print(f"Data avui: {avui}")
+          toca = False
 
           try:
               url = "https://www.ine.es/dynt3/Calendario/calenHTML.htm"
               req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
               html = urllib.request.urlopen(req, timeout=15).read().decode("utf-8")
-
               mes_ca = {1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",5:"Mayo",6:"Junio",
                         7:"Julio",8:"Agosto",9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"}
               mes_actual = mes_ca[avui.month]
-
               seccio = re.search(r'Hipotecas Mensual.*?(?=\n- [A-Z])', html, re.DOTALL)
               if seccio:
                   m = re.search(rf'\|\s*(\d+)\s*\|\s*{mes_actual}\s*\|', seccio.group(0))
                   if m and int(m.group(1)) == avui.day:
-                      print("Avui toca hipoteques")
-                      with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                          f.write("toca=true\n")
+                      toca = True
+                      print(f"Avui toca hipoteques ({avui})")
                   else:
-                      dia = m.group(1) if m else "?"
-                      print(f"No toca avui. Dia publicacio: {dia} {mes_actual}")
-                      with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                          f.write("toca=false\n")
-              else:
-                  print("Seccio no trobada")
-                  with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                      f.write("toca=false\n")
+                      print(f"No toca avui")
           except Exception as e:
-              print(f"Error: {e}")
-              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                  f.write("toca=false\n")
+              print(f"Error calendari: {e}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"toca={'true' if toca else 'false'}\n")
           PYEOF
 
-      - name: Descarregar i transformar dades
-        if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
-        run: python3 transform_hipoteques.py
-
-      - name: Copiar Excel a docs
+      - name: Comprovar si hi ha dades noves
+        id: novedades
         if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
         run: |
-          mkdir -p docs
-          cp hipoteques_idescat.xlsx docs/hipoteques.xlsx
+          python3 - <<'PYEOF'
+          import urllib.request, json, os
 
-      - name: Actualitzar status.json
-        if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
+          # Obtenir el darrer període disponible a l'API
+          url = "https://servicios.ine.es/wstempus/js/ES/DATOS_TABLA/13896?nult=1"
+          req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+          dades = json.loads(urllib.request.urlopen(req, timeout=30).read())
+
+          periode_api = None
+          for s in dades:
+              if "Total Nacional" in s.get("Nombre", "") and "Número" in s.get("Nombre", ""):
+                  d = s["Data"][0]
+                  periode_api = f"{d['Anyo']}{d['FK_Periodo']:02d}"
+                  break
+
+          print(f"Període API: {periode_api}")
+
+          # Llegir darrer període processat del status.json
+          periode_status = None
+          try:
+              with open("docs/status.json") as f:
+                  status = json.load(f)
+              for font in status.get("fonts", []):
+                  if font["id"] == "hipoteques":
+                      periode_status = font.get("darrer_periode")
+                      break
+          except:
+              pass
+
+          print(f"Període status: {periode_status}")
+
+          nou = periode_api and periode_api != periode_status
+          print(f"Dades noves: {nou}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"nou={'true' if nou else 'false'}\n")
+              f.write(f"periode={periode_api or ''}\n")
+          PYEOF
+
+      - name: Actualitzar status — comprovant
+        if: steps.calendari.outputs.toca == 'true' && steps.novedades.outputs.nou == 'false' && github.event_name != 'workflow_dispatch'
         run: |
           python3 - <<'PYEOF'
           import json, datetime, os
 
-          STATUS_FILE = "docs/status.json"
-          os.makedirs("docs", exist_ok=True)
+          ara = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+          proper = (datetime.datetime.utcnow() + datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
           try:
-              with open(STATUS_FILE) as f:
+              with open("docs/status.json") as f:
                   status = json.load(f)
-          except Exception:
+          except:
               status = {"fonts": []}
 
-          ara = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
-          run_id = os.environ.get("GITHUB_RUN_ID", "")
-          repo   = os.environ.get("GITHUB_REPOSITORY", "")
-
-          # Buscar si ja existeix l'entrada
           entrada = next((f for f in status["fonts"] if f["id"] == "hipoteques"), None)
           if not entrada:
               entrada = {"id": "hipoteques"}
               status["fonts"].append(entrada)
 
-          # Extreure usuari i nom repo per construir URL de Pages
-          parts = repo.split("/")
-          usuari = parts[0] if len(parts) > 0 else ""
-          nom_repo = parts[1] if len(parts) > 1 else ""
-          pages_url = f"https://{usuari}.github.io/{nom_repo}"
-
+          intents = entrada.get("intents", 0) + 1
           entrada.update({
-              "nom":           "Hipoteques mensuals",
-              "font":          "INE",
-              "tipus":         "automatica",
-              "estat":         "actualitzada",
-              "darrera_pub":   ara,
-              "incorporat":    False,
-              "artefacte_url": f"{pages_url}/hipoteques.xlsx",
-              "font_url":      "https://www.ine.es/jaxiT3/Tabla.htm?t=13896",
+              "nom": "Hipoteques mensuals",
+              "font": "INE",
+              "tipus": "automatica",
+              "estat": "comprovant",
+              "darrera_comprovacio": ara,
+              "proper_intent": proper,
+              "intents": intents,
           })
 
-          with open(STATUS_FILE, "w") as f:
+          with open("docs/status.json", "w") as f:
               json.dump(status, f, ensure_ascii=False, indent=2)
+          print(f"Status: comprovant (intent {intents})")
+          PYEOF
 
-          print(f"status.json actualitzat: {ara}")
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/status.json
+          git diff --staged --quiet || git commit -m "Status: comprovant hipoteques $(date -u +%H:%M)"
+          git pull --rebase origin main
+          git push
+
+      - name: Descarregar i transformar
+        if: steps.novedades.outputs.nou == 'true' || github.event_name == 'workflow_dispatch'
+        run: python3 transform_hipoteques.py
+
+      - name: Copiar Excel i actualitzar status — actualitzada
+        if: steps.novedades.outputs.nou == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          cp hipoteques_idescat.xlsx docs/hipoteques.xlsx
+
+          python3 - <<'PYEOF'
+          import json, datetime, os
+
+          ara = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+          periode = os.environ.get("PERIODE", "")
+          repo    = os.environ.get("GITHUB_REPOSITORY", "")
+          parts   = repo.split("/")
+          usuari  = parts[0] if len(parts) > 0 else ""
+          nom_repo = parts[1] if len(parts) > 1 else ""
+
+          try:
+              with open("docs/status.json") as f:
+                  status = json.load(f)
+          except:
+              status = {"fonts": []}
+
+          entrada = next((f for f in status["fonts"] if f["id"] == "hipoteques"), None)
+          if not entrada:
+              entrada = {"id": "hipoteques"}
+              status["fonts"].append(entrada)
+
+          entrada.update({
+              "nom": "Hipoteques mensuals",
+              "font": "INE",
+              "tipus": "automatica",
+              "estat": "actualitzada",
+              "darrera_pub": ara,
+              "darrer_periode": periode,
+              "incorporat": False,
+              "intents": 0,
+              "proper_intent": None,
+              "artefacte_url": f"https://{usuari}.github.io/{nom_repo}/hipoteques.xlsx",
+              "font_url": "https://www.ine.es/jaxiT3/Tabla.htm?t=13896",
+          })
+
+          with open("docs/status.json", "w") as f:
+              json.dump(status, f, ensure_ascii=False, indent=2)
+          print(f"Status: actualitzada ({periode})")
           PYEOF
         env:
-          GITHUB_RUN_ID: ${{ github.run_id }}
+          PERIODE: ${{ steps.novedades.outputs.periode }}
           GITHUB_REPOSITORY: ${{ github.repository }}
 
-      - name: Commit status.json
-        if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
+      - name: Commit final
+        if: steps.novedades.outputs.nou == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/status.json docs/hipoteques.xlsx
-          git diff --staged --quiet || git commit -m "Update status: hipoteques $(date -u +%Y-%m-%d)"
+          git diff --staged --quiet || git commit -m "Update hipoteques ${{ steps.novedades.outputs.periode }}"
+          git pull --rebase origin main
           git push
 
-      - name: Log sense canvis
+      - name: Log si no toca
         if: steps.calendari.outputs.toca == 'false' && github.event_name != 'workflow_dispatch'
         run: echo "Avui no toca hipoteques."
