@@ -3,86 +3,83 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Monitor de fonts — Idescat</title>
+<title>Monitor de fonts externes — Idescat</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: system-ui, sans-serif; background: #f5f5f3; color: #1a1a1a; }
-header { background: #1F3864; color: white; padding: 1.25rem 2rem; display: flex; align-items: center; justify-content: space-between; }
-header h1 { font-size: 16px; font-weight: 500; }
-header span { font-size: 12px; opacity: 0.7; }
-.container { max-width: 1000px; margin: 2rem auto; padding: 0 1.5rem; }
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.5rem; }
-.stat { background: white; border-radius: 8px; padding: 1rem; border: 1px solid #e5e5e5; }
-.stat .n { font-size: 24px; font-weight: 600; }
-.stat .l { font-size: 12px; color: #666; margin-top: 3px; }
-.card { background: white; border-radius: 8px; border: 1px solid #e5e5e5; overflow: hidden; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
-th { padding: 10px 16px; text-align: left; font-weight: 500; color: #666; font-size: 12px; border-bottom: 1px solid #eee; background: #fafafa; }
-td { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+body { font-family: Arial, Helvetica, sans-serif; background: #f5f5f3; color: #1a1a1a; font-size: 13px; }
+header { background: #3a3a3a; color: white; padding: 1.25rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+header h1 { font-size: 15px; font-weight: bold; letter-spacing: 0.01em; }
+header span { font-size: 11px; opacity: 0.6; }
+.container { max-width: 1000px; margin: 1.5rem auto; padding: 0 1.5rem; }
+.card { background: white; border-radius: 4px; border: 1px solid #ddd; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+th { padding: 9px 14px; text-align: left; font-weight: bold; color: #444; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #8B1A1A; background: #f7f7f7; }
+td { padding: 11px 14px; border-bottom: 1px solid #ebebeb; vertical-align: top; }
 tr:last-child td { border-bottom: none; }
-.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
-.badge.pendent_descarrega { background: #fff3e0; color: #8a5000; }
-.badge.comprovant         { background: #e8f0fe; color: #1a56b0; }
-.badge.ok                 { background: #f0f0f0; color: #555; }
-.badge.incorporat         { background: #e8f5e0; color: #3a6b10; }
-.badge.error              { background: #fde8e8; color: #b00020; }
+tr:hover td { background: #fafaf8; }
+.badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 3px 8px; border-radius: 3px; font-weight: bold; }
+.badge.comprovant         { background: #f3e8e8; color: #8B1A1A; border: 1px solid #d4a0a0; }
+.badge.pendent_descarrega { background: #fdf0dc; color: #7a4a00; border: 1px solid #f0c878; }
+.badge.incorporat         { background: #f0f0f0; color: #555; border: 1px solid #ccc; }
+.badge.error              { background: #f8dcdc; color: #8B1A1A; border: 1px solid #d4a0a0; }
 .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.dot.pendent_descarrega { background: #ff9800; }
-.dot.comprovant         { background: #2563eb; animation: pulse 1s infinite; }
-.dot.ok                 { background: #999; }
-.dot.incorporat         { background: #4caf50; }
-.dot.error              { background: #f44336; }
+.dot.comprovant         { background: #8B1A1A; animation: pulse 1s infinite; }
+.dot.pendent_descarrega { background: #d97706; }
+.dot.incorporat         { background: #999; }
+.dot.error              { background: #8B1A1A; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-.btn { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; text-decoration: none; color: #333; display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; }
-.btn:hover { background: #f5f5f5; }
-.btn.incorporar { border-color: #4caf50; color: #3a6b10; }
-.btn.incorporar:hover { background: #e8f5e0; }
-.btn.accio { border-color: #2563eb; color: #1a56b0; }
-.nom { font-weight: 500; font-size: 13px; }
-.sub { font-size: 11px; color: #999; margin-top: 2px; }
-.desc { font-size: 11px; color: #555; margin-top: 4px; line-height: 1.4; }
-.empty { text-align: center; padding: 3rem; color: #999; }
+.btn { font-size: 11px; padding: 4px 10px; border-radius: 3px; border: 1px solid #bbb; background: white; color: #333; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; margin-right: 5px; margin-top: 3px; }
+.btn:hover { background: #f0f0f0; }
+.btn.primary { background: #8B1A1A; color: white; border-color: #6a1414; }
+.btn.primary:hover { background: #6a1414; }
+.btn.success { background: #3a6a2a; color: white; border-color: #2a5020; }
+.btn.success:hover { background: #2a5020; }
+.nom-font { font-weight: bold; color: #222; font-size: 13px; }
+.sub-font { font-size: 11px; color: #888; margin-top: 2px; }
+.data-gran { font-size: 13px; font-weight: bold; }
+.data-petit { font-size: 11px; color: #888; margin-top: 2px; }
+.estat-extra { font-size: 11px; color: #777; margin-top: 4px; }
+.desc-font { font-size: 11px; color: #666; margin-top: 6px; padding-top: 6px; border-top: 1px solid #eee; line-height: 1.4; }
+.peu { font-size: 11px; color: #999; margin-top: 10px; }
+.empty { text-align: center; padding: 30px; color: #aaa; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Monitor de fonts estadístiques — Idescat</h1>
+  <h1>Idescat · Monitor de fonts estadístiques externes</h1>
   <span id="ts"></span>
 </header>
 <div class="container">
-  <div class="stats">
-    <div class="stat"><div class="n" id="n-pendent_descarrega" style="color:#8a5000">—</div><div class="l">Pendents descàrrega</div></div>
-    <div class="stat"><div class="n" id="n-comprovant"         style="color:#1a56b0">—</div><div class="l">Comprovant</div></div>
-    <div class="stat"><div class="n" id="n-incorporat"         style="color:#3a6b10">—</div><div class="l">Incorporades</div></div>
-    <div class="stat"><div class="n" id="n-ok"                 style="color:#555">—</div><div class="l">Sense canvis</div></div>
-  </div>
   <div class="card">
     <table>
       <thead>
         <tr>
-          <th style="width:26%">Font</th>
-          <th style="width:15%">Pròxima pub.</th>
+          <th style="width:25%">Font</th>
+          <th style="width:14%">Pròxima pub.</th>
           <th style="width:18%">Estat</th>
-          <th style="width:41%">Procés i accions</th>
+          <th style="width:43%">Procés i accions</th>
         </tr>
       </thead>
-      <tbody id="tbody"><tr><td colspan="4" class="empty">Carregant...</td></tr></tbody>
+      <tbody id="tbody">
+        <tr><td colspan="4" class="empty">Carregant...</td></tr>
+      </tbody>
     </table>
   </div>
-  <p style="margin-top:1rem;font-size:12px;color:#999" id="peu"></p>
+  <p class="peu" id="peu"></p>
 </div>
+
 <script>
 function fmtData(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('ca-ES', {day:'2-digit', month:'2-digit', year:'numeric'});
 }
-function fmtHora(iso) {
-  if (!iso) return '';
-  return new Date(iso).toLocaleTimeString('ca-ES', {hour:'2-digit', minute:'2-digit'});
-}
 function fmtDataHora(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('ca-ES', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
+}
+function fmtHora(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('ca-ES', {hour:'2-digit', minute:'2-digit'});
 }
 function diesPerA(iso) {
   if (!iso) return null;
@@ -97,7 +94,6 @@ function badge(estat) {
   const labels = {
     pendent_descarrega: 'Pendent de descàrrega',
     comprovant: 'Comprovant',
-    ok: 'Sense canvis',
     incorporat: 'Incorporat',
     error: 'Error'
   };
@@ -109,7 +105,6 @@ function marcarIncorporat(id) {
   sessionStorage.setItem('inc', JSON.stringify(o));
   render();
 }
-
 async function render() {
   const overrides = JSON.parse(sessionStorage.getItem('inc')||'{}');
   let data;
@@ -120,70 +115,55 @@ async function render() {
     document.getElementById('tbody').innerHTML='<tr><td colspan="4" class="empty">No s\'ha pogut carregar status.json</td></tr>';
     return;
   }
-
   const fonts = (data.fonts || []).slice().sort((a, b) => {
     if (!a.proper_publicacio && !b.proper_publicacio) return 0;
     if (!a.proper_publicacio) return 1;
     if (!b.proper_publicacio) return -1;
     return new Date(a.proper_publicacio) - new Date(b.proper_publicacio);
   });
-
-  const c = {pendent_descarrega:0, comprovant:0, incorporat:0, ok:0, error:0};
   let html = fonts.length === 0 ? '<tr><td colspan="4" class="empty">Cap font configurada.</td></tr>' : '';
-
   for (const f of fonts) {
     const inc = overrides[f.id] || f.incorporat;
-    let estat = f.estat || 'ok';
+    let estat = f.estat || 'incorporat';
     if (inc && estat === 'pendent_descarrega') estat = 'incorporat';
-    c[estat] = (c[estat]||0) + 1;
 
-    // Data publicació
     const dies = diesPerA(f.proper_publicacio);
     const dataPub = f.proper_publicacio
-      ? `<div style="font-size:13px;font-weight:500">${fmtData(f.proper_publicacio)}</div>
-         ${dies ? `<div style="font-size:11px;color:#888;margin-top:2px">${dies}</div>` : ''}`
-      : '<span style="color:#bbb;font-size:12px">—</span>';
+      ? `<div class="data-gran">${fmtData(f.proper_publicacio)}</div>${dies ? `<div class="data-petit">${dies}</div>` : ''}`
+      : '<span style="color:#ccc">—</span>';
 
-    // Estat extra
     let estatExtra = '';
     if (estat === 'comprovant') {
-      estatExtra = `<div style="font-size:11px;color:#888;margin-top:3px">Intent ${f.intents||1} · ${fmtHora(f.proper_intent)}</div>`;
+      estatExtra = `<div class="estat-extra">Intent ${f.intents||1} · proper: ${fmtHora(f.proper_intent)}</div>`;
     } else if (estat === 'pendent_descarrega' && f.darrera_pub) {
-      estatExtra = `<div style="font-size:11px;color:#888;margin-top:3px">Actualitzat: ${fmtDataHora(f.darrera_pub)}</div>
-                    <div style="font-size:11px;color:#888">Període: ${f.darrer_periode||'—'}</div>`;
+      estatExtra = `<div class="estat-extra">Actualitzat: ${fmtDataHora(f.darrera_pub)}</div>`;
     } else if (estat === 'incorporat' && f.darrer_periode) {
-      estatExtra = `<div style="font-size:11px;color:#888;margin-top:3px">Període: ${f.darrer_periode}</div>`;
+      estatExtra = `<div class="estat-extra">Darrer període: ${f.darrer_periode}</div>`;
     }
 
-    // Accions
-    let accions = `<div style="font-size:11px;color:#555;line-height:1.4;margin-bottom:6px">${f.descripcio||''}</div>`;
+    let accions = '';
     if (estat === 'pendent_descarrega' && f.artefacte_url) {
-      accions += `<a class="btn" href="${f.artefacte_url}?v=${Date.now()}" download>⬇ Baixar Excel</a>`;
-      accions += ` <button class="btn incorporar" onclick="marcarIncorporat('${f.id}')">✓ Marcar incorporat</button>`;
-    } else if (estat === 'incorporat') {
-      if (f.artefacte_url) accions += `<a class="btn" href="${f.artefacte_url}?v=${Date.now()}" download>⬇ Baixar Excel</a>`;
-      accions += ` <span style="font-size:11px;color:#3a6b10;margin-left:4px">✓ Incorporat</span>`;
+      accions += `<a class="btn primary" href="${f.artefacte_url}?v=${Date.now()}" download>⬇ Descarregar Excel ${f.darrer_periode||''}</a>`;
+      accions += `<button class="btn success" onclick="marcarIncorporat('${f.id}')">✓ Marcar incorporat</button>`;
+    } else if (estat === 'incorporat' && f.artefacte_url) {
+      accions += `<a class="btn" href="${f.artefacte_url}?v=${Date.now()}" download>⬇ Descarregar Excel ${f.darrer_periode||''}</a>`;
     } else if (estat === 'comprovant') {
-      accions += `<a class="btn accio" href="https://github.com/${data.repo||''}/actions" target="_blank">↗ Veure procés</a>`;
+      accions += `<a class="btn" href="https://github.com/${data.repo||''}/actions" target="_blank">↗ Veure procés</a>`;
+    }
+    if (f.descripcio) {
+      accions += `<div class="desc-font">${f.descripcio}</div>`;
     }
 
     html += `<tr>
-      <td>
-        <div class="nom">${f.nom}</div>
-        <div class="sub">${f.font} · ${f.tipus==='automatica'?'↻ automàtica':'↑ manual'}</div>
-      </td>
+      <td><div class="nom-font">${f.nom}</div><div class="sub-font">${f.font} · ${f.tipus==='automatica'?'↻ automàtica':'↑ manual'}</div></td>
       <td>${dataPub}</td>
       <td>${badge(estat)}${estatExtra}</td>
       <td>${accions}</td>
     </tr>`;
   }
-
   document.getElementById('tbody').innerHTML = html;
-  ['pendent_descarrega','comprovant','incorporat','ok'].forEach(k => {
-    document.getElementById('n-'+k).textContent = c[k]||0;
-  });
   document.getElementById('ts').textContent = new Date().toLocaleTimeString('ca-ES');
-  document.getElementById('peu').textContent = `${fonts.length} font${fonts.length!==1?'s':''} · refresc cada 30s`;
+  document.getElementById('peu').textContent = `${fonts.length} font${fonts.length!==1?'s':''} configurada${fonts.length!==1?'s':''} · refresc automàtic cada 30s`;
 }
 render();
 setInterval(render, 30000);
