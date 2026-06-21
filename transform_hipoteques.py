@@ -41,9 +41,9 @@ def fetch(taula, n):
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     return json.loads(urllib.request.urlopen(req, timeout=30).read())
 
-def periode(ms):
-    d = datetime.datetime.utcfromtimestamp(ms / 1000)
-    return f"{d.year}{d.month:02d}"
+def periode(d):
+    # Usar Anyo i FK_Periodo del INE (el timestamp pot donar mes incorrecte)
+    return f"{d['Anyo']}{d['FK_Periodo']:02d}"
 
 def mesura(nom):
     n = nom.lower()
@@ -65,7 +65,7 @@ def indexar(dades, geo):
         if clau not in idx: idx[clau] = {}
         for d in s.get("Data", []):
             if d.get("Valor") is not None:
-                idx[clau][periode(d["Fecha"])] = d["Valor"]
+                idx[clau][periode(d)] = d["Valor"]
     return idx
 
 def construir(idx_const, idx_canc):
