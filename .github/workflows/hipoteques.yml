@@ -1,121 +1,155 @@
-name: Hipoteques INE — Monitor i transformació
+"""
+transform_hipoteques.py
+Descarrega les taules 13896 (constituïdes + capital) i 13902 (cancel·lades)
+de l'API JSON del INE i genera un Excel amb dues pestanyes (CAT / ESP).
+"""
 
-on:
-  schedule:
-    # Executa cada dia a les 9:10h hora Espanya (8:10 UTC)
-    - cron: '10 8 * * *'
-  workflow_dispatch:  # Permet llançar manualment
+import urllib.request
+import json
+import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+import sys
 
-jobs:
-  check-and-transform:
-    runs-on: ubuntu-latest
+# ── Configuració ──────────────────────────────────────────────────────────────
 
-    steps:
-      - name: Checkout repositori
-        uses: actions/checkout@v4
+TAULES = {
+    "constituides": "13896",
+    "cancelades":   "13902",
+}
 
-      - name: Configurar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+N_PERIODES = 12
 
-      - name: Instal·lar dependències
-        run: pip install requests pandas openpyxl
+# Textos que apareixen al camp "Nombre" per identificar la geo
+GEO_FILTRES = {
+    "CAT": "Cataluña",
+    "ESP": "Total Nacional",
+}
 
-      - name: Comprovar calendari INE — toca hipoteques avui?
-        id: calendari
-        run: |
-          python3 - <<'EOF'
-          import urllib.request
-          import datetime
-          import re
-          import os
+OUTPUT_FILE = "hipoteques_idescat.xlsx"
 
-          avui = datetime.date.today()
-          print(f"Data avui: {avui}")
+# ── Funcions ───────────────────────────────────────────────────────────────────
 
-          try:
-              url = "https://www.ine.es/dynt3/Calendario/calenHTML.htm"
-              req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-              html = urllib.request.urlopen(req, timeout=15).read().decode("utf-8")
+def fetch_taula(id_taula: str, n: int = 12) -> list:
+    url = f"https://servicios.ine.es/wstempus/js/ES/DATOS_TABLA/{id_taula}?nult={n}"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    data = urllib.request.urlopen(req, timeout=30).read()
+    return json.loads(data)
 
-              # Buscar la secció "Hipotecas Mensual" i el dia d'aquest mes
-              mes_ca = {
-                  1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",
-                  5:"Mayo",6:"Junio",7:"Julio",8:"Agosto",
-                  9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"
-              }
-              mes_actual = mes_ca[avui.month]
+def timestamp_a_periode(anyo: int, fecha_ms: int) -> str:
+    """Converteix any + mes implícit en Fecha → format YYYYMM."""
+    import datetime
+    dt = datetime.datetime.fromtimestamp(fecha_ms / 1000)
+    return f"{dt.year}{str(dt.month).zfill(2)}"
 
-              # Buscar patró: | dia | mes_actual | ... dins la secció Hipotecas Mensual
-              seccio = re.search(r'Hipotecas Mensual.*?(?=\n- [A-ZÁÉÍÓÚ])', html, re.DOTALL)
-              if seccio:
-                  text = seccio.group(0)
-                  patró = rf'\|\s*(\d+)\s*\|\s*{mes_actual}\s*\|'
-                  m = re.search(patró, text)
-                  if m:
-                      dia_pub = int(m.group(1))
-                      if dia_pub == avui.day:
-                          print(f"✅ Avui toca hipoteques ({avui.day} {mes_actual})")
-                          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                              f.write("toca=true\n")
-                      else:
-                          print(f"⏭ No toca avui. Dia publicació: {dia_pub} {mes_actual}")
-                          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                              f.write("toca=false\n")
-                  else:
-                      print(f"No s'ha trobat data per {mes_actual}")
-                      with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                          f.write("toca=false\n")
-              else:
-                  print("No s'ha trobat la secció Hipotecas Mensual")
-                  with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                      f.write("toca=false\n")
-          except Exception as e:
-              print(f"Error llegint calendari: {e}")
-              # En cas d'error, no executem
-              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-                  f.write("toca=false\n")
-          EOF
+def parse_taula(dades: list, geo_text: str) -> pd.DataFrame:
+    """
+    Filtra per geo_text dins el camp Nombre,
+    retorna DataFrame: index=periode, columns=descripció variable.
+    """
+    registres = []
+    for serie in dades:
+        nom = serie.get("Nombre", "")
+        if geo_text not in nom:
+            continue
+        # Nom net: treure la part geogràfica i "Base nueva. Mensual."
+        nom_net = nom.replace(f". {geo_text}.", "").replace(f"{geo_text}. ", "")
+        nom_net = nom_net.replace("Base nueva. Mensual. ", "").replace("Base nueva.", "").strip(". ")
 
-      - name: Descarregar i transformar dades
-        if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
-        run: python3 transform_hipoteques.py
+        for d in serie.get("Data", []):
+            periode = timestamp_a_periode(d["Anyo"], d["Fecha"])
+            valor   = d.get("Valor")
+            registres.append({"periode": periode, "variable": nom_net, "valor": valor})
 
-      - name: Desar Excel com a artefacte
-        if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
-        with:
-          name: hipoteques-${{ github.run_id }}
-          path: hipoteques_idescat.xlsx
-          retention-days: 90
+    if not registres:
+        return pd.DataFrame()
 
-      - name: Enviar email amb el fitxer
-        if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-          username: ${{ secrets.GMAIL_USER }}
-          password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          subject: "📊 Hipoteques INE — dades noves disponibles"
-          to: ${{ secrets.NOTIFY_EMAILS }}
-          from: "Monitor Idescat <${{ secrets.GMAIL_USER }}>"
-          body: |
-            El INE ha publicat avui les dades mensuals d'hipoteques.
+    df = pd.DataFrame(registres)
+    df_pivot = df.pivot_table(index="periode", columns="variable", values="valor", aggfunc="first")
+    df_pivot = df_pivot.sort_index(ascending=False).head(N_PERIODES)
+    return df_pivot
 
-            Adjunt trobareu el fitxer Excel transformat en format Idescat,
-            amb les pestanyes CAT i ESP i els últims 12 períodes.
+def afegir_columnes_buides(df: pd.DataFrame) -> pd.DataFrame:
+    """Intercala 2 columnes buides entre cada columna de valors."""
+    cols = []
+    for i, col in enumerate(df.columns):
+        cols.append(df[col])
+        if i < len(df.columns) - 1:
+            cols.append(pd.Series([None] * len(df), index=df.index, name=f"__b{i}a"))
+            cols.append(pd.Series([None] * len(df), index=df.index, name=f"__b{i}b"))
+    return pd.concat(cols, axis=1)
 
-            🔗 Font original INE:
-            https://www.ine.es/jaxiT3/Tabla.htm?t=13896
-            https://www.ine.es/jaxiT3/Tabla.htm?t=13902
+def escriure_pestanya(ws, df_final: pd.DataFrame):
+    header_fill = PatternFill("solid", fgColor="1F3864")
+    header_font = Font(color="FFFFFF", bold=True, size=10)
 
-            ---
-            Run: ${{ github.run_number }} · ${{ github.repository }}
-          attachments: hipoteques_idescat.xlsx
+    # Capçaleres (ocultar noms de columnes buides)
+    caps = ["Periode"]
+    for c in df_final.columns:
+        caps.append("" if str(c).startswith("__b") else str(c))
+    ws.append(caps)
 
-      - name: Log si no toca avui
-        if: steps.calendari.outputs.toca == 'false' && github.event_name != 'workflow_dispatch'
-        run: echo "Avui no hi ha publicació d'hipoteques al calendari INE."
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", wrap_text=True)
+
+    ws.row_dimensions[1].height = 40
+
+    for periode, row in df_final.iterrows():
+        ws.append([periode] + list(row))
+
+    ws.column_dimensions["A"].width = 10
+    for col in ws.iter_cols(min_col=2, max_col=ws.max_column):
+        letter = col[0].column_letter
+        ws.column_dimensions[letter].width = 14
+
+# ── Main ───────────────────────────────────────────────────────────────────────
+
+def main():
+    print("Descarregant dades del INE...")
+
+    try:
+        dades_const = fetch_taula(TAULES["constituides"], N_PERIODES)
+        dades_canc  = fetch_taula(TAULES["cancelades"],   N_PERIODES)
+    except Exception as e:
+        print(f"ERROR en la descàrrega: {e}")
+        sys.exit(1)
+
+    print(f"Registres taula constituïdes: {len(dades_const)}")
+    print(f"Registres taula cancel·lades: {len(dades_canc)}")
+
+    wb = Workbook()
+    wb.remove(wb.active)
+
+    for nom_geo, geo_text in GEO_FILTRES.items():
+        print(f"\nProcessant {nom_geo} ({geo_text})...")
+
+        df_const = parse_taula(dades_const, geo_text)
+        df_canc  = parse_taula(dades_canc,  geo_text)
+
+        print(f"  Constituïdes: {df_const.shape if not df_const.empty else 'buit'}")
+        print(f"  Cancel·lades: {df_canc.shape if not df_canc.empty else 'buit'}")
+
+        if df_const.empty and df_canc.empty:
+            print(f"  Sense dades, es salta.")
+            continue
+
+        df = pd.concat([df_const, df_canc], axis=1)
+        df = df.loc[~df.index.duplicated(keep="first")]
+        df = df.sort_index(ascending=False).head(N_PERIODES)
+        df_final = afegir_columnes_buides(df)
+
+        ws = wb.create_sheet(title=nom_geo)
+        escriure_pestanya(ws, df_final)
+        print(f"  ✅ {len(df_final)} períodes escrits, {len(df_final.columns)} columnes.")
+
+    if not wb.sheetnames:
+        print("\nERROR: cap pestanya creada. Revisa els filtres geogràfics.")
+        sys.exit(1)
+
+    wb.save(OUTPUT_FILE)
+    print(f"\nFitxer generat: {OUTPUT_FILE}")
+
+if __name__ == "__main__":
+    main()
