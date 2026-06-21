@@ -1,0 +1,121 @@
+name: Hipoteques INE — Monitor i transformació
+
+on:
+  schedule:
+    # Executa cada dia a les 9:10h hora Espanya (8:10 UTC)
+    - cron: '10 8 * * *'
+  workflow_dispatch:  # Permet llançar manualment
+
+jobs:
+  check-and-transform:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repositori
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instal·lar dependències
+        run: pip install requests pandas openpyxl
+
+      - name: Comprovar calendari INE — toca hipoteques avui?
+        id: calendari
+        run: |
+          python3 - <<'EOF'
+          import urllib.request
+          import datetime
+          import re
+          import os
+
+          avui = datetime.date.today()
+          print(f"Data avui: {avui}")
+
+          try:
+              url = "https://www.ine.es/dynt3/Calendario/calenHTML.htm"
+              req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+              html = urllib.request.urlopen(req, timeout=15).read().decode("utf-8")
+
+              # Buscar la secció "Hipotecas Mensual" i el dia d'aquest mes
+              mes_ca = {
+                  1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",
+                  5:"Mayo",6:"Junio",7:"Julio",8:"Agosto",
+                  9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"
+              }
+              mes_actual = mes_ca[avui.month]
+
+              # Buscar patró: | dia | mes_actual | ... dins la secció Hipotecas Mensual
+              seccio = re.search(r'Hipotecas Mensual.*?(?=\n- [A-ZÁÉÍÓÚ])', html, re.DOTALL)
+              if seccio:
+                  text = seccio.group(0)
+                  patró = rf'\|\s*(\d+)\s*\|\s*{mes_actual}\s*\|'
+                  m = re.search(patró, text)
+                  if m:
+                      dia_pub = int(m.group(1))
+                      if dia_pub == avui.day:
+                          print(f"✅ Avui toca hipoteques ({avui.day} {mes_actual})")
+                          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                              f.write("toca=true\n")
+                      else:
+                          print(f"⏭ No toca avui. Dia publicació: {dia_pub} {mes_actual}")
+                          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                              f.write("toca=false\n")
+                  else:
+                      print(f"No s'ha trobat data per {mes_actual}")
+                      with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                          f.write("toca=false\n")
+              else:
+                  print("No s'ha trobat la secció Hipotecas Mensual")
+                  with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                      f.write("toca=false\n")
+          except Exception as e:
+              print(f"Error llegint calendari: {e}")
+              # En cas d'error, no executem
+              with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+                  f.write("toca=false\n")
+          EOF
+
+      - name: Descarregar i transformar dades
+        if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
+        run: python3 transform_hipoteques.py
+
+      - name: Desar Excel com a artefacte
+        if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hipoteques-${{ github.run_id }}
+          path: hipoteques_idescat.xlsx
+          retention-days: 90
+
+      - name: Enviar email amb el fitxer
+        if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.GMAIL_USER }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "📊 Hipoteques INE — dades noves disponibles"
+          to: ${{ secrets.NOTIFY_EMAILS }}
+          from: "Monitor Idescat <${{ secrets.GMAIL_USER }}>"
+          body: |
+            El INE ha publicat avui les dades mensuals d'hipoteques.
+
+            Adjunt trobareu el fitxer Excel transformat en format Idescat,
+            amb les pestanyes CAT i ESP i els últims 12 períodes.
+
+            🔗 Font original INE:
+            https://www.ine.es/jaxiT3/Tabla.htm?t=13896
+            https://www.ine.es/jaxiT3/Tabla.htm?t=13902
+
+            ---
+            Run: ${{ github.run_number }} · ${{ github.repository }}
+          attachments: hipoteques_idescat.xlsx
+
+      - name: Log si no toca avui
+        if: steps.calendari.outputs.toca == 'false' && github.event_name != 'workflow_dispatch'
+        run: echo "Avui no hi ha publicació d'hipoteques al calendari INE."
