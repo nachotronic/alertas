@@ -45,13 +45,20 @@ jobs:
               seccio = re.search(r'Hipotecas Mensual.*?(?=\n- [A-Z])', html, re.DOTALL)
               if seccio:
                   # Extreure dia | mes | periode_ref de cada fila
+                  # Format taula: | dia | Mes | Periodo de referencia |
                   files = re.findall(r'\|\s*(\d+)\s*\|\s*(\w+)\s*\|\s*([^|\n]+?)\s*\|', seccio.group(0))
                   entrades = []
+                  any_actual = avui.year
+                  mes_anterior = 0
                   for dia, mes_str, periode_ref in files:
                       mes_num = mes_inv.get(mes_str.strip())
                       if mes_num:
                           try:
-                              d = datetime.date(2026, mes_num, int(dia))
+                              # Si el mes és menor que l'anterior, hem canviat d'any
+                              if mes_num < mes_anterior:
+                                  any_actual += 1
+                              mes_anterior = mes_num
+                              d = datetime.date(any_actual, mes_num, int(dia))
                               entrades.append((d, periode_ref.strip()))
                           except:
                               pass
@@ -247,21 +254,27 @@ jobs:
               mes_inv = {v: k for k, v in mes_ca.items()}
               seccio = re.search(r'Hipotecas Mensual.*?(?=\n- [A-Z])', html, re.DOTALL)
               if seccio:
-                  dates = re.findall(r'\|\s*(\d+)\s*\|\s*(\w+)\s*\|\s*(\d{4})', seccio.group(0))
+                  files = re.findall(r'\|\s*(\d+)\s*\|\s*(\w+)\s*\|\s*([^|\n]+?)\s*\|', seccio.group(0))
                   futures = []
-                  for dia, mes_str, any_str in dates:
-                      mes_num = mes_inv.get(mes_str)
+                  any_actual = avui.year
+                  mes_anterior = 0
+                  for dia, mes_str, periode_ref in files:
+                      mes_num = mes_inv.get(mes_str.strip())
                       if mes_num:
                           try:
-                              d = datetime.date(int(any_str), mes_num, int(dia))
-                              if d > avui:  # > avui, no >= (la d'avui ja s'ha publicat)
-                                  futures.append(d)
+                              if mes_num < mes_anterior:
+                                  any_actual += 1
+                              mes_anterior = mes_num
+                              d = datetime.date(any_actual, mes_num, int(dia))
+                              if d > avui:
+                                  futures.append((d, periode_ref.strip()))
                           except:
                               pass
-                  futures.sort()
+                  futures.sort(key=lambda x: x[0])
                   if futures:
-                      proper_publicacio = futures[0].isoformat() + "T09:00:00Z"
-                      print(f"Proper publicació: {proper_publicacio}")
+                      proper_publicacio = futures[0][0].isoformat() + "T09:00:00Z"
+                      proper_periode_ref_seg = futures[0][1]
+                      print(f"Proper publicació: {proper_publicacio} ({proper_periode_ref_seg})")
           except Exception as e:
               print(f"Error calendari: {e}")
 
@@ -284,6 +297,10 @@ jobs:
               }
               if proper_publicacio:
                   update["proper_publicacio"] = proper_publicacio
+              try:
+                  update["proper_periode_ref"] = proper_periode_ref_seg
+              except:
+                  pass
               entrada.update(update)
 
           with open("docs/status.json", "w") as f:
