@@ -7,47 +7,36 @@ Taules INE 13896 (constituides + capital) i 13902 (cancelades)
 import urllib.request
 import json
 import datetime
-import pandas as pd
+import re
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 import sys
-import re
 
 TAULES = {"constituides": "13896", "cancelades": "13902"}
 N_PERIODES = 12
 GEO_FILTRES = {"CAT": "Cataluña", "ESP": "Total Nacional"}
 OUTPUT_FILE = "hipoteques_idescat.xlsx"
 
-# Cada entrada: (paraules clau que han d'aparèixer al nom raw, nom visible)
-# Les paraules clau s'usen per cerca parcial case-insensitive
-MAPEIG_CONST = [
-    (["Total fincas", "Número"],       "Hipoteques constituïdes (nombre)"),
-    (["fincas urbanas", "Número"],     "Finques urbanes"),
-    (["Viviendas", "Número"],          "Habitatges"),
-    (["Solares", "Número"],            "Solars"),
-    (["Otros", "Número"],              "Altres"),
-    (["rústicas", "Número"],           "Finques rústiques"),
-    (["Total fincas", "Importe"],      "Capital prestat (milions d'euros)"),
-    (["fincas urbanas", "Importe"],    "Finques urbanes (capital)"),
-    (["Viviendas", "Importe"],         "Habitatges (capital)"),
-    (["Solares", "Importe"],           "Solars (capital)"),
-    (["Otros", "Importe"],             "Altres (capital)"),
-    (["rústicas", "Importe"],          "Finques rústiques (capital)"),
-]
-
-MAPEIG_CANC = [
-    (["Total fincas", "cancelada"],          "Hipoteques cancel·lades (nombre)"),
-    (["fincas urbanas", "cancelada"],        "Finques urbanes (cancel·lades)"),
-    (["Viviendas", "cancelada"],             "Habitatges (cancel·lades)"),
-    (["Solares", "cancelada"],               "Solars (cancel·lades)"),
-    (["urbanas: otros", "cancelada"],        "Altres (cancel·lades)"),
-    (["rústicas", "cancelada"],              "Finques rústiques (cancel·lades)"),
-]
-
-CAPS_VISIBLES = [
-    "Hipoteques constituïdes (nombre)", "Finques urbanes", "Habitatges", "Solars", "Altres", "Finques rústiques",
-    "Capital prestat (milions d'euros)", "Finques urbanes", "Habitatges", "Solars", "Altres", "Finques rústiques",
-    "Hipoteques cancel·lades (nombre)", "Finques urbanes", "Habitatges", "Solars", "Altres", "Finques rústiques",
+# (paraules clau per cercar al nom raw, nom visible, taula font)
+COLUMNES = [
+    (["Total fincas", "Número"],        "Hipoteques constituïdes (nombre)",  "const"),
+    (["fincas urbanas", "Número"],      "Finques urbanes",                   "const"),
+    (["Viviendas", "Número"],           "Habitatges",                        "const"),
+    (["Solares", "Número"],             "Solars",                            "const"),
+    (["Otros", "Número"],               "Altres",                            "const"),
+    (["rústicas", "Número"],            "Finques rústiques",                 "const"),
+    (["Total fincas", "Importe"],       "Capital prestat (milions d'euros)", "const"),
+    (["fincas urbanas", "Importe"],     "Finques urbanes",                   "const"),
+    (["Viviendas", "Importe"],          "Habitatges",                        "const"),
+    (["Solares", "Importe"],            "Solars",                            "const"),
+    (["Otros", "Importe"],              "Altres",                            "const"),
+    (["rústicas", "Importe"],           "Finques rústiques",                 "const"),
+    (["Total fincas", "cancelada"],     "Hipoteques cancel·lades (nombre)",  "canc"),
+    (["fincas urbanas", "cancelada"],   "Finques urbanes",                   "canc"),
+    (["Viviendas", "cancelada"],        "Habitatges",                        "canc"),
+    (["Solares", "cancelada"],          "Solars",                            "canc"),
+    (["urbanas: otros", "cancelada"],   "Altres",                            "canc"),
+    (["rústicas", "cancelada"],         "Finques rústiques",                 "canc"),
 ]
 
 def fetch_taula(id_taula, n=12):
@@ -66,7 +55,6 @@ def parse_taula(dades, geo_text):
         nom_full = serie.get("Nombre", "")
         if geo_text not in nom_full:
             continue
-        # Normalitzar espais múltiples
         nom_raw = re.sub(r'\s+', ' ', nom_full).strip()
         for d in serie.get("Data", []):
             if d.get("Valor") is None:
@@ -77,60 +65,43 @@ def parse_taula(dades, geo_text):
             result[nom_raw][periode] = d["Valor"]
     return result
 
-def cerca_clau(raw_dict, paraules_clau):
-    """Troba la primera clau del dict que conté totes les paraules clau."""
+def cerca_clau(raw_dict, paraules):
     for clau in raw_dict:
         clau_lower = clau.lower()
-        if all(p.lower() in clau_lower for p in paraules_clau):
+        if all(p.lower() in clau_lower for p in paraules):
             return clau
     return None
 
-def construir_df(dades_const, dades_canc, geo_text):
-    raw_const = parse_taula(dades_const, geo_text)
-    raw_canc  = parse_taula(dades_canc,  geo_text)
-
-    print(f"  Noms raw constituides+capital:")
-    for k in raw_const:
-        print(f"    {k}")
-    print(f"  Noms raw cancel·lades:")
-    for k in raw_canc:
-        print(f"    {k}")
-
-    # Obtenir tots els períodes
+def construir_files(raw_const, raw_canc):
+    """Construeix llista de files en ordre correcte, sense pandas."""
+    # Obtenir períodes
     periodes = set()
     for d in list(raw_const.values()) + list(raw_canc.values()):
         periodes.update(d.keys())
     periodes = sorted(periodes, reverse=True)[:N_PERIODES]
 
-    data = {p: {} for p in periodes}
+    # Pre-calcular claus per cada columna
+    claus = []
+    for paraules, nom_visible, font in COLUMNES:
+        raw = raw_const if font == "const" else raw_canc
+        clau = cerca_clau(raw, paraules)
+        claus.append((clau, font, raw_const if font == "const" else raw_canc))
+        print(f"  '{nom_visible}' ({font}) → '{clau}'")
 
-    for paraules, nom_visible in MAPEIG_CONST:
-        clau = cerca_clau(raw_const, paraules)
-        print(f"  CONST '{nom_visible}' → '{clau}'")
-        for p in periodes:
-            data[p][nom_visible] = raw_const.get(clau, {}).get(p) if clau else None
+    # Construir files
+    files = []
+    for periode in periodes:
+        fila = [periode]
+        for clau, font, raw in claus:
+            val = raw.get(clau, {}).get(periode) if clau else None
+            fila.append(val)
+            # 3 columnes buides
+            fila.extend([None, None, None])
+        # Treure les 3 últimes buides (no cal després de l'última columna)
+        fila = fila[:-3]
+        files.append(fila)
 
-    for paraules, nom_visible in MAPEIG_CANC:
-        clau = cerca_clau(raw_canc, paraules)
-        print(f"  CANC '{nom_visible}' → '{clau}'")
-        for p in periodes:
-            data[p][nom_visible] = raw_canc.get(clau, {}).get(p) if clau else None
-
-    col_order = [m[1] for m in MAPEIG_CONST] + [m[1] for m in MAPEIG_CANC]
-    df = pd.DataFrame(data).T
-    df.index.name = "periode"
-    df = df[col_order]
-    df = df.sort_index(ascending=False)
-    return df
-
-def afegir_columnes_buides(df, n_buides=3):
-    cols = []
-    for i, col in enumerate(df.columns):
-        cols.append(df[col])
-        if i < len(df.columns) - 1:
-            for j in range(n_buides):
-                cols.append(pd.Series([None]*len(df), index=df.index, name=f"__b{i}_{j}"))
-    return pd.concat(cols, axis=1)
+    return periodes, files
 
 def escriure_full_carrega(ws):
     ws.title = "Full de càrrega"
@@ -141,16 +112,16 @@ def escriure_full_carrega(ws):
     ws["A1"].font = font
     ws.column_dimensions["A"].width = 30
 
-def escriure_pestanya_dades(ws, df):
+def escriure_pestanya_dades(ws, files):
     fill_cap = PatternFill("solid", fgColor="1F3864")
     font_cap = Font(color="FFFFFF", bold=True, size=9)
 
-    df_final = afegir_columnes_buides(df, n_buides=3)
-
-    caps = ["Periode"] + [
-        "" if str(c).startswith("__b") else str(c)
-        for c in df_final.columns
-    ]
+    # Capçaleres
+    caps = ["Periode"]
+    for paraules, nom_visible, font in COLUMNES:
+        caps.append(nom_visible)
+        caps.extend(["", "", ""])
+    caps = caps[:-3]  # treure les 3 últimes buides
     ws.append(caps)
 
     for cell in ws[1]:
@@ -159,8 +130,8 @@ def escriure_pestanya_dades(ws, df):
         cell.alignment = Alignment(horizontal="center", wrap_text=True)
     ws.row_dimensions[1].height = 50
 
-    for periode, row in df_final.iterrows():
-        ws.append([periode] + list(row))
+    for fila in files:
+        ws.append(fila)
 
     ws.column_dimensions["A"].width = 10
     for col in ws.iter_cols(min_col=2, max_col=ws.max_column):
@@ -180,13 +151,20 @@ def main():
 
     for nom_geo, geo_text in GEO_FILTRES.items():
         print(f"\nProcessant {nom_geo}...")
-        df = construir_df(dades_const, dades_canc, geo_text)
-        if df.empty:
+        raw_const = parse_taula(dades_const, geo_text)
+        raw_canc  = parse_taula(dades_canc,  geo_text)
+
+        if not raw_const and not raw_canc:
             print(f"  Sense dades.")
             continue
+
+        periodes, files = construir_files(raw_const, raw_canc)
+        if not files:
+            continue
+
         ws = wb.create_sheet(title=nom_geo)
-        escriure_pestanya_dades(ws, df)
-        print(f"  OK: {len(df)} periodes.")
+        escriure_pestanya_dades(ws, files)
+        print(f"  OK: {len(files)} periodes.")
 
     if len(wb.sheetnames) <= 1:
         print("ERROR: cap pestanya de dades creada.")
