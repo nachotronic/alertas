@@ -7,15 +7,17 @@
       "font": "INE",
       "tipus": "automatica",
       "descripcio": "Descarrega les taules HIP 13896 i 13902 del INE i genera un Excel amb dades de Cat i Esp en format Idescat.",
-      "estat": "pendent_descarrega",
+      "estat": "incorporat",
       "proper_publicacio": "2026-06-22T09:00:00Z",
-      "darrera_pub": "2026-06-21T19:02:35Z",
+      "darrera_pub": null,
       "darrer_periode": "202603",
-      "incorporat": false,
+      "incorporat": true,
       "intents": 0,
       "proper_intent": null,
       "artefacte_url": "https://nachotronic.github.io/alertas/hipoteques.xlsx",
-      "font_url": "https://www.ine.es/jaxiT3/Tabla.htm?t=13896"
+      "font_url": "https://www.ine.es/jaxiT3/Tabla.htm?t=13896",
+      "proper_periode_ref": "Abril 2026"
     }
   ]
+}
 }
