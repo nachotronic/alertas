@@ -53,32 +53,58 @@ def timestamp_a_periode(fecha_ms):
 
 def indexar_per_geo(dades, geo_text):
     """
-    Retorna dict: { (prefix_tipus, mesura) → { periode → valor } }
-    On prefix_tipus = text abans de '. {geo_text}.'
-    i mesura = 'Número de hipotecas' / 'Importe de hipotecas' / 'cancelada'
+    Retorna dict: { (tipus_finca, mesura) → { periode → valor } }
+    Gestiona dos formats del INE:
+    - CCAA:  "Tipus. GEO. Mesura. Base nueva. Mensual."
+    - ESP:   "Tipus. Mesura. Total Nacional. Base nueva. Mensual."
     """
     index = {}
     for serie in dades:
         nom = serie.get("Nombre", "")
-        # Format: "Tipus. GEO. Mesura. Base nueva. Mensual."
-        # o per cancel·lades: "Tipus. GEO. Hipoteca cancelada"
-        marcador = f". {geo_text}. "
-        if marcador not in nom:
+        if geo_text not in nom:
             continue
-        parts = nom.split(marcador)
-        if len(parts) < 2:
-            continue
-        tipus = parts[0].strip()
-        resta = parts[1].strip().rstrip(". ")
-        # Normalitzar mesura
-        if "Número de hipotecas" in resta:
-            mesura = "Número de hipotecas"
-        elif "Importe de hipotecas" in resta:
-            mesura = "Importe de hipotecas"
-        elif "cancelada" in resta.lower():
-            mesura = "cancelada"
+
+        tipus = None
+        mesura = None
+
+        if geo_text == "Total Nacional":
+            # Format ESP: "Tipus. Mesura. Total Nacional. Base nueva. Mensual."
+            # Eliminar el sufix " Total Nacional. Base nueva. Mensual."
+            base = nom.replace(f". {geo_text}. Base nueva. Mensual.", "").strip()
+            # Ara base = "Tipus. Mesura" o "Tipus. Hipoteca cancelada"
+            parts = base.split(". ")
+            if len(parts) >= 2:
+                tipus = parts[0].strip()
+                mesura_raw = ". ".join(parts[1:]).strip()
+                if "Número de hipotecas" in mesura_raw:
+                    mesura = "Número de hipotecas"
+                elif "Importe de hipotecas" in mesura_raw:
+                    mesura = "Importe de hipotecas"
+                elif "cancelada" in mesura_raw.lower():
+                    mesura = "cancelada"
+                else:
+                    mesura = mesura_raw
         else:
-            mesura = resta
+            # Format CCAA: "Tipus. GEO. Mesura. Base nueva. Mensual."
+            marcador = f". {geo_text}. "
+            if marcador not in nom:
+                continue
+            parts = nom.split(marcador)
+            if len(parts) < 2:
+                continue
+            tipus = parts[0].strip()
+            resta = parts[1].strip()
+            if "Número de hipotecas" in resta:
+                mesura = "Número de hipotecas"
+            elif "Importe de hipotecas" in resta:
+                mesura = "Importe de hipotecas"
+            elif "cancelada" in resta.lower():
+                mesura = "cancelada"
+            else:
+                mesura = resta
+
+        if not tipus or not mesura:
+            continue
 
         clau = (tipus, mesura)
         if clau not in index:
