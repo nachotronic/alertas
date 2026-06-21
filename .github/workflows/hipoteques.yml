@@ -76,7 +76,7 @@ jobs:
                   dades = json.loads(urllib.request.urlopen(req2, timeout=30).read())
                   periode_api = None
                   for s in dades:
-                      if "Total Nacional" in s.get("Nombre", "") and "Numero" in s.get("Nombre", ""):
+                      if "Total Nacional" in s.get("Nombre", "") and "mero de hipotecas" in s.get("Nombre", ""):
                           d = s["Data"][0]
                           periode_api = f"{d['Anyo']}{d['FK_Periodo']:02d}"
                           break
@@ -296,7 +296,7 @@ jobs:
           git push
 
       - name: Commit data publicació
-        if: steps.calendari.outputs.proper_publicacio != '' && steps.calendari.outputs.toca == 'false' && github.event_name != 'workflow_dispatch'
+        if: steps.calendari.outputs.proper_publicacio != '' && steps.novedades.outputs.nou != 'true' && github.event_name != 'workflow_dispatch'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
