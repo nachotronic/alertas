@@ -1,0 +1,37 @@
+name: Diagnòstic JSON INE
+
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Veure estructura JSON taula 13896
+        run: |
+          python3 - <<'EOF'
+          import urllib.request, json
+
+          url = "https://servicios.ine.es/wstempus/js/ES/DATOS_TABLA/13896?nult=1"
+          req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+          data = json.loads(urllib.request.urlopen(req, timeout=30).read())
+
+          print(f"Total registres: {len(data)}")
+          print("\n--- Primers 3 registres ---")
+          for item in data[:3]:
+              print(json.dumps(item, ensure_ascii=False, indent=2))
+
+          print("\n--- Valors únics de MetaData ---")
+          dims = {}
+          for item in data:
+              for m in item.get("MetaData", []):
+                  nom = m["Nombre"]
+                  cod = m["Codigo"]
+                  if nom not in dims:
+                      dims[nom] = set()
+                  dims[nom].add(f"{cod} = {m.get('Nombre_valor','')}")
+          for dim, vals in dims.items():
+              print(f"\nDimensió: {dim}")
+              for v in sorted(vals):
+                  print(f"  {v}")
+          EOF
