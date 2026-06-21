@@ -5,6 +5,9 @@ on:
     - cron: '10 8 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   check-and-transform:
     runs-on: ubuntu-latest
@@ -43,7 +46,7 @@ jobs:
               if seccio:
                   m = re.search(rf'\|\s*(\d+)\s*\|\s*{mes_actual}\s*\|', seccio.group(0))
                   if m and int(m.group(1)) == avui.day:
-                      print(f"Avui toca hipoteques")
+                      print("Avui toca hipoteques")
                       with open(os.environ["GITHUB_OUTPUT"], "a") as f:
                           f.write("toca=true\n")
                   else:
@@ -52,7 +55,7 @@ jobs:
                       with open(os.environ["GITHUB_OUTPUT"], "a") as f:
                           f.write("toca=false\n")
               else:
-                  print("Seccio Hipotecas Mensual no trobada")
+                  print("Seccio no trobada")
                   with open(os.environ["GITHUB_OUTPUT"], "a") as f:
                       f.write("toca=false\n")
           except Exception as e:
@@ -65,7 +68,7 @@ jobs:
         if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
         run: python3 transform_hipoteques.py
 
-      - name: Desar com a artefacte
+      - name: Desar Excel com a artefacte
         if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
@@ -73,24 +76,59 @@ jobs:
           path: hipoteques_idescat.xlsx
           retention-days: 90
 
-      - name: Enviar email
+      - name: Actualitzar status.json
         if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
-        uses: dawidd6/action-send-mail@v3
-        with:
-          server_address: smtp.gmail.com
-          server_port: 465
-          secure: true
-          username: ${{ secrets.GMAIL_USER }}
-          password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          subject: "Hipoteques INE — dades noves"
-          to: ${{ secrets.NOTIFY_EMAILS }}
-          from: "Monitor Idescat <${{ secrets.GMAIL_USER }}>"
-          body: |
-            El INE ha publicat les dades mensuals d'hipoteques.
-            Adjunt el fitxer Excel en format Idescat (CAT + ESP, 12 períodes).
+        run: |
+          python3 - <<'PYEOF'
+          import json, datetime, os
 
-            Font: https://www.ine.es/jaxiT3/Tabla.htm?t=13896
-          attachments: hipoteques_idescat.xlsx
+          STATUS_FILE = "docs/status.json"
+          os.makedirs("docs", exist_ok=True)
+
+          try:
+              with open(STATUS_FILE) as f:
+                  status = json.load(f)
+          except Exception:
+              status = {"fonts": []}
+
+          ara = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+          run_id = os.environ.get("GITHUB_RUN_ID", "")
+          repo   = os.environ.get("GITHUB_REPOSITORY", "")
+
+          # Buscar si ja existeix l'entrada
+          entrada = next((f for f in status["fonts"] if f["id"] == "hipoteques"), None)
+          if not entrada:
+              entrada = {"id": "hipoteques"}
+              status["fonts"].append(entrada)
+
+          entrada.update({
+              "nom":           "Hipoteques mensuals",
+              "font":          "INE",
+              "tipus":         "automatica",
+              "estat":         "actualitzada",
+              "darrera_pub":   ara,
+              "incorporat":    False,
+              "artefacte_url": f"https://github.com/{repo}/actions/runs/{run_id}",
+              "font_url":      "https://www.ine.es/jaxiT3/Tabla.htm?t=13896",
+          })
+
+          with open(STATUS_FILE, "w") as f:
+              json.dump(status, f, ensure_ascii=False, indent=2)
+
+          print(f"status.json actualitzat: {ara}")
+          PYEOF
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Commit status.json
+        if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/status.json
+          git diff --staged --quiet || git commit -m "Update status: hipoteques $(date -u +%Y-%m-%d)"
+          git push
 
       - name: Log sense canvis
         if: steps.calendari.outputs.toca == 'false' && github.event_name != 'workflow_dispatch'
