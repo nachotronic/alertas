@@ -86,15 +86,6 @@ function fmtHora(iso) {
   if (!iso) return '';
   return new Date(iso).toLocaleTimeString('ca-ES', {hour:'2-digit', minute:'2-digit'});
 }
-function periodeAText(periode) {
-  if (!periode) return null;
-  // periode format: YYYYMM → "gener 2026"
-  const mesos = ['gener','febrer','març','abril','maig','juny',
-                 'juliol','agost','setembre','octubre','novembre','desembre'];
-  const any = periode.substring(0, 4);
-  const mes = parseInt(periode.substring(4, 6)) - 1;
-  return mesos[mes] ? `${mesos[mes]} ${any}` : periode;
-}
 function diesPerA(iso) {
   if (!iso) return null;
   const diff = new Date(iso) - new Date();
@@ -154,19 +145,11 @@ async function render() {
     if (inc && estat === 'pendent_descarrega') estat = 'incorporat';
 
     const dies = diesPerA(f.proper_publicacio);
-    // Deduir el període que es descarregarà (2 mesos enrere de la data de publicació)
-    let periodePrevist = null;
-    if (f.proper_publicacio) {
-      const d = new Date(f.proper_publicacio);
-      d.setMonth(d.getMonth() - 2);
-      const any = d.getFullYear();
-      const mes = String(d.getMonth() + 1).padStart(2, '0');
-      periodePrevist = periodeAText(`${any}${mes}`);
-    }
+    const periodeRef = f.proper_periode_ref || null;
     const dataPub = f.proper_publicacio
       ? `<div class="data-gran">${fmtData(f.proper_publicacio)}</div>
          ${dies ? `<div class="data-petit">${dies}</div>` : ''}
-         ${periodePrevist ? `<div class="data-petit" style="color:#8B1A1A;margin-top:2px">${periodePrevist}</div>` : ''}`
+         ${periodeRef ? `<div class="data-petit" style="color:#8B1A1A;margin-top:2px">${periodeRef}</div>` : ''}`
       : '<span style="color:#ccc">—</span>';
 
     let estatExtra = '';
