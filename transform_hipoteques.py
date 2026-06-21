@@ -1,20 +1,16 @@
 """
 transform_hipoteques.py
 Descarrega les taules 13896 (constituïdes + capital) i 13902 (cancel·lades)
-de l'API JSON del INE, filtra Catalunya i Espanya, i genera un Excel
-amb dues pestanyes (CAT / ESP) en format Idescat:
-- Una fila per període (format 202603)
-- Valors bruts amb 2 columnes buides entre cada un
-- Últims 12 períodes
+de l'API JSON del INE i genera un Excel amb dues pestanyes (CAT / ESP).
 """
 
-import requests
+import urllib.request
+import json
+import datetime
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
-import json
 import sys
-from datetime import datetime
 
 # ── Configuració ──────────────────────────────────────────────────────────────
 
@@ -25,10 +21,9 @@ TAULES = {
 
 N_PERIODES = 12
 
-# Codis de comunitat autònoma al INE
-GEO = {
-    "CAT": "09",   # Catalunya
-    "ESP": "00",   # Total nacional
+GEO_FILTRES = {
+    "CAT": "Cataluña",
+    "ESP": "Total Nacional",
 }
 
 OUTPUT_FILE = "hipoteques_idescat.xlsx"
@@ -37,87 +32,98 @@ OUTPUT_FILE = "hipoteques_idescat.xlsx"
 
 def fetch_taula(id_taula: str, n: int = 12) -> list:
     url = f"https://servicios.ine.es/wstempus/js/ES/DATOS_TABLA/{id_taula}?nult={n}"
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
-    return r.json()
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    data = urllib.request.urlopen(req, timeout=30).read()
+    return json.loads(data)
 
-def periode_ine_a_idescat(periode_str: str) -> str:
+def timestamp_a_periode(anyo: int, fecha_ms: int) -> str:
     """
-    Converteix '2026M03' o '2026M3' → '202603'
+    Converteix timestamp en ms → format YYYYMM.
+    Usa UTC per evitar problemes de timezone al servidor de GitHub Actions.
     """
-    try:
-        parts = periode_str.split("M")
-        any_ = parts[0]
-        mes  = parts[1].zfill(2)
-        return f"{any_}{mes}"
-    except Exception:
-        return periode_str
+    dt = datetime.datetime.utcfromtimestamp(fecha_ms / 1000)
+    return f"{dt.year}{str(dt.month).zfill(2)}"
 
-def parse_taula(dades: list, geo_codi: str) -> pd.DataFrame:
+def nom_net(nom: str, geo_text: str) -> str:
+    """Elimina la part geogràfica i els sufixos estàndard del INE."""
+    resultat = nom
+    resultat = resultat.replace(f". {geo_text}.", ".")
+    resultat = resultat.replace(f"{geo_text}. ", "")
+    resultat = resultat.replace("Base nueva. Mensual.", "")
+    resultat = resultat.replace("Base nueva.", "")
+    resultat = resultat.strip(". ")
+    return resultat
+
+def parse_taula(dades: list, geo_text: str) -> pd.DataFrame:
     """
-    Parseja el JSON del INE i retorna un DataFrame amb:
-    index = periode (format Idescat)
-    columns = (nom_variable, naturalesa_finca)
+    Filtra per geo_text dins el camp Nombre,
+    retorna DataFrame: index=periode (YYYYMM), columns=descripció variable.
     """
     registres = []
-    for item in dades:
-        # Cada item té: Nombre (nom sèrie), Data, Valor, MetaData (llista de dims)
-        meta = {m["Nombre"]: m["Codigo"] for m in item.get("MetaData", [])}
-
-        # Filtre per comunitat autònoma
-        ca = meta.get("Comunidades y ciudades autónomas", "")
-        if ca != geo_codi:
+    for serie in dades:
+        nom = serie.get("Nombre", "")
+        if geo_text not in nom:
             continue
 
-        periode = periode_ine_a_idescat(item.get("Periodo", ""))
-        nom     = item.get("Nombre", "")
-        valor   = item.get("Valor")
+        variable = nom_net(nom, geo_text)
 
-        registres.append({
-            "periode": periode,
-            "nom":     nom,
-            "valor":   valor,
-        })
+        for d in serie.get("Data", []):
+            if d.get("Valor") is None:
+                continue
+            periode = timestamp_a_periode(d["Anyo"], d["Fecha"])
+            registres.append({
+                "periode":  periode,
+                "variable": variable,
+                "valor":    d["Valor"],
+            })
 
     if not registres:
+        print(f"  ⚠ Cap registre trobat per '{geo_text}'")
         return pd.DataFrame()
 
     df = pd.DataFrame(registres)
-    df_pivot = df.pivot_table(index="periode", columns="nom", values="valor", aggfunc="first")
+    df_pivot = df.pivot_table(
+        index="periode",
+        columns="variable",
+        values="valor",
+        aggfunc="first"
+    )
     df_pivot = df_pivot.sort_index(ascending=False).head(N_PERIODES)
     return df_pivot
 
 def afegir_columnes_buides(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Intercala 2 columnes buides entre cada columna de valors.
-    """
-    cols_noves = []
+    """Intercala 2 columnes buides entre cada columna de valors."""
+    cols = []
     for i, col in enumerate(df.columns):
-        cols_noves.append(df[col])
+        cols.append(df[col])
         if i < len(df.columns) - 1:
-            cols_noves.append(pd.Series([None] * len(df), index=df.index, name=f"_buit_{i}_1"))
-            cols_noves.append(pd.Series([None] * len(df), index=df.index, name=f"_buit_{i}_2"))
-    return pd.concat(cols_noves, axis=1)
+            cols.append(pd.Series([None] * len(df), index=df.index, name=f"__b{i}a"))
+            cols.append(pd.Series([None] * len(df), index=df.index, name=f"__b{i}b"))
+    return pd.concat(cols, axis=1)
 
-def escriure_pestanya(ws, df_final: pd.DataFrame, nom_geo: str):
-    """
-    Escriu el DataFrame a una pestanya d'Excel amb format.
-    """
-    # Capçalera
+def escriure_pestanya(ws, df_final: pd.DataFrame):
+    """Escriu el DataFrame a una pestanya d'Excel amb format."""
     header_fill = PatternFill("solid", fgColor="1F3864")
     header_font = Font(color="FFFFFF", bold=True, size=10)
 
-    ws.append(["Periode"] + list(df_final.columns))
+    # Capçaleres (columnes buides sense nom)
+    caps = ["Periode"] + [
+        "" if str(c).startswith("__b") else str(c)
+        for c in df_final.columns
+    ]
+    ws.append(caps)
+
     for cell in ws[1]:
         cell.fill = header_fill
         cell.font = header_font
-        cell.alignment = Alignment(horizontal="center")
+        cell.alignment = Alignment(horizontal="center", wrap_text=True)
+    ws.row_dimensions[1].height = 45
 
     # Dades
     for periode, row in df_final.iterrows():
         ws.append([periode] + list(row))
 
-    # Amplada columnes
+    # Amplades
     ws.column_dimensions["A"].width = 10
     for col in ws.iter_cols(min_col=2, max_col=ws.max_column):
         letter = col[0].column_letter
@@ -135,34 +141,43 @@ def main():
         print(f"ERROR en la descàrrega: {e}")
         sys.exit(1)
 
+    print(f"Registres constituïdes: {len(dades_const)}")
+    print(f"Registres cancel·lades: {len(dades_canc)}")
+
+    # Diagnòstic: mostrar tots els Nombre disponibles per detectar el text geo correcte
+    print("\nNoms de sèries disponibles (constituïdes):")
+    for s in dades_const:
+        print(f"  {s.get('Nombre','')}")
+
     wb = Workbook()
-    wb.remove(wb.active)  # Elimina la pestanya per defecte
+    wb.remove(wb.active)
 
-    for nom_geo, codi_geo in GEO.items():
-        print(f"Processant {nom_geo}...")
+    for nom_geo, geo_text in GEO_FILTRES.items():
+        print(f"\nProcessant {nom_geo} ('{geo_text}')...")
 
-        df_const = parse_taula(dades_const, codi_geo)
-        df_canc  = parse_taula(dades_canc,  codi_geo)
+        df_const = parse_taula(dades_const, geo_text)
+        df_canc  = parse_taula(dades_canc,  geo_text)
 
         if df_const.empty and df_canc.empty:
             print(f"  Sense dades per a {nom_geo}, es salta.")
             continue
 
-        # Combinar constituïdes + cancel·lades
         df = pd.concat([df_const, df_canc], axis=1)
         df = df.loc[~df.index.duplicated(keep="first")]
         df = df.sort_index(ascending=False).head(N_PERIODES)
-
-        # Afegir columnes buides
         df_final = afegir_columnes_buides(df)
 
-        # Escriure pestanya
         ws = wb.create_sheet(title=nom_geo)
-        escriure_pestanya(ws, df_final, nom_geo)
-        print(f"  {len(df_final)} períodes escrits.")
+        escriure_pestanya(ws, df_final)
+        print(f"  ✅ {len(df_final)} períodes, {len(df.columns)} variables.")
+
+    if not wb.sheetnames:
+        print("\nERROR: cap pestanya creada.")
+        print("Revisa els textos de GEO_FILTRES amb els noms de sèries mostrats a dalt.")
+        sys.exit(1)
 
     wb.save(OUTPUT_FILE)
-    print(f"\nFitxer generat: {OUTPUT_FILE}")
+    print(f"\n✅ Fitxer generat: {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     main()
