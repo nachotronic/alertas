@@ -2,41 +2,44 @@
 transform_hipoteques.py
 Taules INE 13896 (constituides + capital) i 13902 (cancelades)
 → Excel format Idescat: Full de càrrega + CAT + ESP
+Mapeig per nom exacte del INE.
 """
 
 import urllib.request
 import json
 import datetime
-import re
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 import sys
 
 TAULES = {"constituides": "13896", "cancelades": "13902"}
 N_PERIODES = 12
-GEO_FILTRES = {"CAT": "Cataluña", "ESP": "Total Nacional"}
 OUTPUT_FILE = "hipoteques_idescat.xlsx"
 
-# (paraules clau per cercar al nom raw, nom visible, taula font)
-COLUMNES = [
-    (["Total fincas", "Número"],        "Hipoteques constituïdes (nombre)",  "const"),
-    (["fincas urbanas", "Número"],      "Finques urbanes",                   "const"),
-    (["Viviendas", "Número"],           "Habitatges",                        "const"),
-    (["Solares", "Número"],             "Solars",                            "const"),
-    (["Otros", "Número"],               "Altres",                            "const"),
-    (["rústicas", "Número"],            "Finques rústiques",                 "const"),
-    (["Total fincas", "Importe"],       "Capital prestat (milions d'euros)", "const"),
-    (["fincas urbanas", "Importe"],     "Finques urbanes",                   "const"),
-    (["Viviendas", "Importe"],          "Habitatges",                        "const"),
-    (["Solares", "Importe"],            "Solars",                            "const"),
-    (["Otros", "Importe"],              "Altres",                            "const"),
-    (["rústicas", "Importe"],           "Finques rústiques",                 "const"),
-    (["Total fincas", "cancelada"],     "Hipoteques cancel·lades (nombre)",  "canc"),
-    (["fincas urbanas", "cancelada"],   "Finques urbanes",                   "canc"),
-    (["Viviendas", "cancelada"],        "Habitatges",                        "canc"),
-    (["Solares", "cancelada"],          "Solars",                            "canc"),
-    (["urbanas: otros", "cancelada"],   "Altres",                            "canc"),
-    (["rústicas", "cancelada"],         "Finques rústiques",                 "canc"),
+# Ordre exacte desitjat: (prefix_tipus_finca, mesura, nom_visible)
+# prefix_tipus_finca = text ABANS de ". {GEO}." al camp Nombre
+ORDRE_CONST = [
+    ("Total fincas",         "Número de hipotecas",  "Hipoteques constituïdes (nombre)"),
+    ("Total fincas urbanas", "Número de hipotecas",  "Finques urbanes"),
+    ("Viviendas",            "Número de hipotecas",  "Habitatges"),
+    ("Solares",              "Número de hipotecas",  "Solars"),
+    ("Otros",                "Número de hipotecas",  "Altres"),
+    ("Total fincas rústicas","Número de hipotecas",  "Finques rústiques"),
+    ("Total fincas",         "Importe de hipotecas", "Capital prestat (milions d'euros)"),
+    ("Total fincas urbanas", "Importe de hipotecas", "Finques urbanes"),
+    ("Viviendas",            "Importe de hipotecas", "Habitatges"),
+    ("Solares",              "Importe de hipotecas", "Solars"),
+    ("Otros",                "Importe de hipotecas", "Altres"),
+    ("Total fincas rústicas","Importe de hipotecas", "Finques rústiques"),
+]
+
+ORDRE_CANC = [
+    ("Total fincas",         "cancelada", "Hipoteques cancel·lades (nombre)"),
+    ("Total fincas urbanas", "cancelada", "Finques urbanes"),
+    ("Viviendas",            "cancelada", "Habitatges"),
+    ("Solares",              "cancelada", "Solars"),
+    ("Fincas urbanas: otros","cancelada", "Altres"),
+    ("Total fincas rústicas","cancelada", "Finques rústiques"),
 ]
 
 def fetch_taula(id_taula, n=12):
@@ -48,60 +51,85 @@ def timestamp_a_periode(fecha_ms):
     dt = datetime.datetime.utcfromtimestamp(fecha_ms / 1000)
     return f"{dt.year}{str(dt.month).zfill(2)}"
 
-def parse_taula(dades, geo_text):
-    """Retorna dict { nom_raw_normalitzat → { periode → valor } }"""
-    result = {}
+def indexar_per_geo(dades, geo_text):
+    """
+    Retorna dict: { (prefix_tipus, mesura) → { periode → valor } }
+    On prefix_tipus = text abans de '. {geo_text}.'
+    i mesura = 'Número de hipotecas' / 'Importe de hipotecas' / 'cancelada'
+    """
+    index = {}
     for serie in dades:
-        nom_full = serie.get("Nombre", "")
-        if geo_text not in nom_full:
+        nom = serie.get("Nombre", "")
+        # Format: "Tipus. GEO. Mesura. Base nueva. Mensual."
+        # o per cancel·lades: "Tipus. GEO. Hipoteca cancelada"
+        marcador = f". {geo_text}. "
+        if marcador not in nom:
             continue
-        nom_raw = re.sub(r'\s+', ' ', nom_full).strip()
+        parts = nom.split(marcador)
+        if len(parts) < 2:
+            continue
+        tipus = parts[0].strip()
+        resta = parts[1].strip().rstrip(". ")
+        # Normalitzar mesura
+        if "Número de hipotecas" in resta:
+            mesura = "Número de hipotecas"
+        elif "Importe de hipotecas" in resta:
+            mesura = "Importe de hipotecas"
+        elif "cancelada" in resta.lower():
+            mesura = "cancelada"
+        else:
+            mesura = resta
+
+        clau = (tipus, mesura)
+        if clau not in index:
+            index[clau] = {}
         for d in serie.get("Data", []):
             if d.get("Valor") is None:
                 continue
             periode = timestamp_a_periode(d["Fecha"])
-            if nom_raw not in result:
-                result[nom_raw] = {}
-            result[nom_raw][periode] = d["Valor"]
-    return result
+            index[clau][periode] = d["Valor"]
+    return index
 
-def cerca_clau(raw_dict, paraules):
-    for clau in raw_dict:
-        clau_lower = clau.lower()
-        if all(p.lower() in clau_lower for p in paraules):
-            return clau
-    return None
-
-def construir_files(raw_const, raw_canc):
-    """Construeix llista de files en ordre correcte, sense pandas."""
-    # Obtenir períodes
+def construir_files(index_const, index_canc, geo_text):
+    # Obtenir tots els períodes
     periodes = set()
-    for d in list(raw_const.values()) + list(raw_canc.values()):
+    for d in list(index_const.values()) + list(index_canc.values()):
         periodes.update(d.keys())
     periodes = sorted(periodes, reverse=True)[:N_PERIODES]
 
-    # Pre-calcular claus per cada columna
-    claus = []
-    for paraules, nom_visible, font in COLUMNES:
-        raw = raw_const if font == "const" else raw_canc
-        clau = cerca_clau(raw, paraules)
-        claus.append((clau, font, raw_const if font == "const" else raw_canc))
-        print(f"  '{nom_visible}' ({font}) → '{clau}'")
+    # Definir columnes en ordre
+    columnes = []
+    for tipus, mesura, nom_visible in ORDRE_CONST:
+        clau = (tipus, mesura)
+        data = index_const.get(clau, {})
+        columnes.append((nom_visible, data))
+        if not data:
+            print(f"  AVÍS: no trobat ({tipus} / {mesura})")
 
-    # Construir files
+    for tipus, mesura, nom_visible in ORDRE_CANC:
+        clau = (tipus, mesura)
+        data = index_canc.get(clau, {})
+        columnes.append((nom_visible, data))
+        if not data:
+            print(f"  AVÍS: no trobat ({tipus} / {mesura})")
+
+    # Construir files amb 3 columnes buides entre valors
+    caps = ["Periode"]
+    for nom_visible, _ in columnes:
+        caps.append(nom_visible)
+        caps.extend(["", "", ""])
+    caps = caps[:-3]
+
     files = []
     for periode in periodes:
         fila = [periode]
-        for clau, font, raw in claus:
-            val = raw.get(clau, {}).get(periode) if clau else None
-            fila.append(val)
-            # 3 columnes buides
-            fila.extend([None, None, None])
-        # Treure les 3 últimes buides (no cal després de l'última columna)
-        fila = fila[:-3]
+        for i, (nom_visible, data) in enumerate(columnes):
+            fila.append(data.get(periode))
+            if i < len(columnes) - 1:
+                fila.extend([None, None, None])
         files.append(fila)
 
-    return periodes, files
+    return caps, files
 
 def escriure_full_carrega(ws):
     ws.title = "Full de càrrega"
@@ -112,18 +140,11 @@ def escriure_full_carrega(ws):
     ws["A1"].font = font
     ws.column_dimensions["A"].width = 30
 
-def escriure_pestanya_dades(ws, files):
+def escriure_pestanya(ws, caps, files):
     fill_cap = PatternFill("solid", fgColor="1F3864")
     font_cap = Font(color="FFFFFF", bold=True, size=9)
 
-    # Capçaleres
-    caps = ["Periode"]
-    for paraules, nom_visible, font in COLUMNES:
-        caps.append(nom_visible)
-        caps.extend(["", "", ""])
-    caps = caps[:-3]  # treure les 3 últimes buides
     ws.append(caps)
-
     for cell in ws[1]:
         cell.fill = fill_cap
         cell.font = font_cap
@@ -149,29 +170,29 @@ def main():
     wb = Workbook()
     escriure_full_carrega(wb.active)
 
-    for nom_geo, geo_text in GEO_FILTRES.items():
+    for nom_geo, geo_text in [("CAT", "Cataluña"), ("ESP", "Total Nacional")]:
         print(f"\nProcessant {nom_geo}...")
-        raw_const = parse_taula(dades_const, geo_text)
-        raw_canc  = parse_taula(dades_canc,  geo_text)
+        index_const = indexar_per_geo(dades_const, geo_text)
+        index_canc  = indexar_per_geo(dades_canc,  geo_text)
 
-        if not raw_const and not raw_canc:
+        print(f"  Claus constituides: {list(index_const.keys())}")
+        print(f"  Claus cancel·lades: {list(index_canc.keys())}")
+
+        caps, files = construir_files(index_const, index_canc, geo_text)
+        if not files:
             print(f"  Sense dades.")
             continue
 
-        periodes, files = construir_files(raw_const, raw_canc)
-        if not files:
-            continue
-
         ws = wb.create_sheet(title=nom_geo)
-        escriure_pestanya_dades(ws, files)
-        print(f"  OK: {len(files)} periodes.")
+        escriure_pestanya(ws, caps, files)
+        print(f"  OK: {len(files)} periodes, {len(caps)} columnes (incl. buides).")
 
     if len(wb.sheetnames) <= 1:
         print("ERROR: cap pestanya de dades creada.")
         sys.exit(1)
 
     wb.save(OUTPUT_FILE)
-    print(f"Fitxer generat: {OUTPUT_FILE}")
+    print(f"\nFitxer generat: {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     main()
