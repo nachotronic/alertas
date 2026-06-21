@@ -5,36 +5,42 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Monitor de fonts — Idescat</title>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: system-ui, sans-serif; background: #f5f5f3; color: #1a1a1a; }
-  header { background: #1F3864; color: white; padding: 1.25rem 2rem; display: flex; align-items: center; justify-content: space-between; }
-  header h1 { font-size: 16px; font-weight: 500; }
-  header span { font-size: 12px; opacity: 0.7; }
-  .container { max-width: 900px; margin: 2rem auto; padding: 0 1.5rem; }
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.5rem; }
-  .stat { background: white; border-radius: 8px; padding: 1rem; border: 1px solid #e5e5e5; }
-  .stat .n { font-size: 24px; font-weight: 600; }
-  .stat .l { font-size: 12px; color: #666; margin-top: 3px; }
-  .card { background: white; border-radius: 8px; border: 1px solid #e5e5e5; overflow: hidden; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { padding: 10px 16px; text-align: left; font-weight: 500; color: #666; font-size: 12px; border-bottom: 1px solid #eee; background: #fafafa; }
-  td { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
-  tr:last-child td { border-bottom: none; }
-  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 500; }
-  .badge.actualitzada { background: #e8f5e0; color: #3a6b10; }
-  .badge.pendent { background: #fff3e0; color: #8a5000; }
-  .badge.ok { background: #f0f0f0; color: #555; }
-  .badge.error { background: #fde8e8; color: #b00020; }
-  .dot { width: 6px; height: 6px; border-radius: 50%; }
-  .dot.actualitzada { background: #4caf50; }
-  .dot.pendent { background: #ff9800; }
-  .dot.ok { background: #999; }
-  .dot.error { background: #f44336; }
-  .btn { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; text-decoration: none; color: #333; display: inline-flex; align-items: center; gap: 4px; }
-  .btn:hover { background: #f5f5f5; }
-  .btn.incorporar { border-color: #4caf50; color: #3a6b10; }
-  .btn.incorporar:hover { background: #e8f5e0; }
-  .empty { text-align: center; padding: 3rem; color: #999; font-size: 14px; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #f5f5f3; color: #1a1a1a; }
+header { background: #1F3864; color: white; padding: 1.25rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+header h1 { font-size: 16px; font-weight: 500; }
+header span { font-size: 12px; opacity: 0.7; }
+.container { max-width: 960px; margin: 2rem auto; padding: 0 1.5rem; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+.stat { background: white; border-radius: 8px; padding: 1rem; border: 1px solid #e5e5e5; }
+.stat .n { font-size: 24px; font-weight: 600; }
+.stat .l { font-size: 12px; color: #666; margin-top: 3px; }
+.card { background: white; border-radius: 8px; border: 1px solid #e5e5e5; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { padding: 10px 16px; text-align: left; font-weight: 500; color: #666; font-size: 12px; border-bottom: 1px solid #eee; background: #fafafa; }
+td { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 500; }
+.badge.actualitzada { background: #e8f5e0; color: #3a6b10; }
+.badge.pendent     { background: #fff3e0; color: #8a5000; }
+.badge.comprovant  { background: #e8f0fe; color: #1a56b0; }
+.badge.ok          { background: #f0f0f0; color: #555; }
+.badge.error       { background: #fde8e8; color: #b00020; }
+.dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.dot.actualitzada { background: #4caf50; }
+.dot.pendent      { background: #ff9800; }
+.dot.comprovant   { background: #2563eb; animation: pulse 1s infinite; }
+.dot.ok           { background: #999; }
+.dot.error        { background: #f44336; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.btn { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; text-decoration: none; color: #333; display: inline-flex; align-items: center; gap: 4px; }
+.btn:hover { background: #f5f5f5; }
+.btn.incorporar { border-color: #4caf50; color: #3a6b10; }
+.btn.incorporar:hover { background: #e8f5e0; }
+.btn.accio { border-color: #2563eb; color: #1a56b0; }
+.btn.accio:hover { background: #e8f0fe; }
+.info-petit { font-size: 11px; color: #888; margin-top: 3px; }
+.empty { text-align: center; padding: 3rem; color: #999; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -45,18 +51,18 @@
 <div class="container">
   <div class="stats">
     <div class="stat"><div class="n" id="n-actualitzada" style="color:#3a6b10">—</div><div class="l">Actualitzades</div></div>
-    <div class="stat"><div class="n" id="n-pendent" style="color:#8a5000">—</div><div class="l">Pendents d'incorporar</div></div>
-    <div class="stat"><div class="n" id="n-ok" style="color:#555">—</div><div class="l">Sense canvis</div></div>
-    <div class="stat"><div class="n" id="n-error" style="color:#b00020">—</div><div class="l">Error</div></div>
+    <div class="stat"><div class="n" id="n-comprovant"  style="color:#1a56b0">—</div><div class="l">Comprovant</div></div>
+    <div class="stat"><div class="n" id="n-pendent"     style="color:#8a5000">—</div><div class="l">Pendents d'incorporar</div></div>
+    <div class="stat"><div class="n" id="n-ok"          style="color:#555">—</div><div class="l">Sense canvis</div></div>
   </div>
   <div class="card">
     <table>
       <thead>
         <tr>
-          <th>Font / sèrie</th>
-          <th>Estat</th>
-          <th>Darrera publicació</th>
-          <th>Accions</th>
+          <th style="width:28%">Font / sèrie</th>
+          <th style="width:15%">Estat</th>
+          <th style="width:20%">Darrera actualització</th>
+          <th style="width:37%">Accions</th>
         </tr>
       </thead>
       <tbody id="tbody"><tr><td colspan="4" class="empty">Carregant...</td></tr></tbody>
@@ -65,13 +71,13 @@
   <p style="margin-top:1rem;font-size:12px;color:#999" id="peu"></p>
 </div>
 <script>
-function formatData(iso) {
+function fmt(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleString('ca-ES', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
 }
 function badge(estat) {
-  const label = {actualitzada:'Actualitzada',pendent:'Pendent',ok:'Sense canvis',error:'Error'}[estat] || estat;
-  return `<span class="badge ${estat}"><span class="dot ${estat}"></span>${label}</span>`;
+  const labels = {actualitzada:'Actualitzada',pendent:'Pendent',comprovant:'Comprovant',ok:'Sense canvis',error:'Error'};
+  return `<span class="badge ${estat}"><span class="dot ${estat}"></span>${labels[estat]||estat}</span>`;
 }
 function marcarIncorporat(id) {
   const o = JSON.parse(sessionStorage.getItem('inc')||'{}');
@@ -90,30 +96,56 @@ async function render() {
     return;
   }
   const fonts = data.fonts || [];
-  const c = {actualitzada:0,pendent:0,ok:0,error:0};
+  const c = {actualitzada:0,pendent:0,comprovant:0,ok:0,error:0};
   let html = fonts.length === 0 ? '<tr><td colspan="4" class="empty">Cap font configurada encara.</td></tr>' : '';
+
   for (const f of fonts) {
     const inc = overrides[f.id] || f.incorporat;
-    const estat = (inc && f.estat==='actualitzada') ? 'pendent' : f.estat;
-    c[estat] = (c[estat]||0)+1;
-    const teArtefacte = f.artefacte_url && (estat==='actualitzada'||estat==='pendent');
-    const accions = teArtefacte
-      ? `<a class="btn" href="${f.artefacte_url}" target="_blank">⬇ Baixar</a>${!inc?`<button class="btn incorporar" onclick="marcarIncorporat('${f.id}')">✓ Incorporat</button>`:'<span style="font-size:11px;color:#3a6b10">✓ Incorporat</span>'}`
-      : '—';
+    let estat = f.estat;
+    if (inc && estat === 'actualitzada') estat = 'pendent';
+    c[estat] = (c[estat]||0) + 1;
+
+    // Info extra segons estat
+    let info = '';
+    if (estat === 'comprovant') {
+      info = `<div class="info-petit">Intent ${f.intents||1} · proper: ${fmt(f.proper_intent)}</div>`;
+    } else if (estat === 'actualitzada' || estat === 'pendent') {
+      info = f.darrer_periode ? `<div class="info-petit">Últim període: ${f.darrer_periode}</div>` : '';
+    }
+
+    // Accions
+    let accions = '';
+    if ((estat === 'actualitzada' || estat === 'pendent') && f.artefacte_url) {
+      accions = `<a class="btn" href="${f.artefacte_url}?v=${Date.now()}" download>⬇ Baixar Excel</a>`;
+      if (!inc) {
+        accions += ` <button class="btn incorporar" onclick="marcarIncorporat('${f.id}')">✓ Marcar incorporat</button>`;
+      } else {
+        accions += ` <span style="font-size:11px;color:#3a6b10">✓ Incorporat</span>`;
+      }
+    } else if (estat === 'comprovant') {
+      accions = `<a class="btn accio" href="https://github.com/${data.repo||''}/actions" target="_blank">↗ Veure Actions</a>`;
+    }
+
     html += `<tr>
-      <td><div style="font-weight:500">${f.nom}</div><div style="font-size:11px;color:#999;margin-top:2px">${f.font}</div></td>
-      <td>${badge(estat)}</td>
-      <td style="font-size:12px;color:#666">${formatData(f.darrera_pub)}</td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap">${accions}</td>
+      <td>
+        <div style="font-weight:500">${f.nom}</div>
+        <div style="font-size:11px;color:#999;margin-top:2px">${f.font} · ${f.tipus==='automatica'?'↻ automàtica':'↑ manual'}</div>
+      </td>
+      <td>${badge(estat)}${info}</td>
+      <td style="font-size:12px;color:#666">${fmt(f.darrera_pub||f.darrera_comprovacio)}</td>
+      <td style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${accions||'—'}</td>
     </tr>`;
   }
+
   document.getElementById('tbody').innerHTML = html;
-  ['actualitzada','pendent','ok','error'].forEach(k => document.getElementById('n-'+k).textContent = c[k]||0);
+  ['actualitzada','comprovant','pendent','ok'].forEach(k => {
+    document.getElementById('n-'+k).textContent = c[k]||0;
+  });
   document.getElementById('ts').textContent = new Date().toLocaleTimeString('ca-ES');
   document.getElementById('peu').textContent = `${fonts.length} font${fonts.length!==1?'s':''} configurada${fonts.length!==1?'s':''}`;
 }
 render();
-setInterval(render, 60000);
+setInterval(render, 30000); // refresca cada 30s
 </script>
 </body>
 </html>
