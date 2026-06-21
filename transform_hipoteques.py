@@ -12,7 +12,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 
 OUTPUT_FILE  = "hipoteques_idescat.xlsx"
 N_PERIODES   = 12
-N_FETCH      = 24
+N_FETCH      = 36
 
 # Ordre final de columnes: (tipus_finca, mesura, capçalera_visible)
 COLUMNES = [
