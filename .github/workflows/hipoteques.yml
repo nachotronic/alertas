@@ -190,7 +190,7 @@ jobs:
           cp hipoteques_idescat.xlsx docs/hipoteques.xlsx
 
           python3 - <<'PYEOF'
-          import json, datetime, os
+          import json, datetime, os, urllib.request, re
 
           ara = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
           periode = os.environ.get("PERIODE", "")
@@ -198,6 +198,36 @@ jobs:
           parts   = repo.split("/")
           usuari  = parts[0] if len(parts) > 0 else ""
           nom_repo = parts[1] if len(parts) > 1 else ""
+
+          # Buscar la data SEGÜENT al calendari del INE (> avui)
+          proper_publicacio = None
+          try:
+              avui = datetime.date.today()
+              url = "https://www.ine.es/dynt3/Calendario/calenHTML.htm"
+              req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+              html = urllib.request.urlopen(req, timeout=15).read().decode("utf-8")
+              mes_ca = {1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",5:"Mayo",6:"Junio",
+                        7:"Julio",8:"Agosto",9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"}
+              mes_inv = {v: k for k, v in mes_ca.items()}
+              seccio = re.search(r'Hipotecas Mensual.*?(?=\n- [A-Z])', html, re.DOTALL)
+              if seccio:
+                  dates = re.findall(r'\|\s*(\d+)\s*\|\s*(\w+)\s*\|\s*(\d{4})', seccio.group(0))
+                  futures = []
+                  for dia, mes_str, any_str in dates:
+                      mes_num = mes_inv.get(mes_str)
+                      if mes_num:
+                          try:
+                              d = datetime.date(int(any_str), mes_num, int(dia))
+                              if d > avui:  # > avui, no >= (la d'avui ja s'ha publicat)
+                                  futures.append(d)
+                          except:
+                              pass
+                  futures.sort()
+                  if futures:
+                      proper_publicacio = futures[0].isoformat() + "T09:00:00Z"
+                      print(f"Proper publicació: {proper_publicacio}")
+          except Exception as e:
+              print(f"Error calendari: {e}")
 
           try:
               with open("docs/status.json") as f:
@@ -207,7 +237,7 @@ jobs:
 
           entrada = next((f for f in status["fonts"] if f["id"] == "hipoteques"), None)
           if entrada:
-              entrada.update({
+              update = {
                   "estat": "pendent_descarrega",
                   "darrera_pub": ara,
                   "darrer_periode": periode,
@@ -215,7 +245,10 @@ jobs:
                   "intents": 0,
                   "proper_intent": None,
                   "artefacte_url": f"https://{usuari}.github.io/{nom_repo}/hipoteques.xlsx",
-              })
+              }
+              if proper_publicacio:
+                  update["proper_publicacio"] = proper_publicacio
+              entrada.update(update)
 
           with open("docs/status.json", "w") as f:
               json.dump(status, f, ensure_ascii=False, indent=2)
