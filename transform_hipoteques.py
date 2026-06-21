@@ -46,9 +46,9 @@ def periode(d):
 
 def mesura(nom):
     n = nom.lower()
+    if "cancelada"           in n: return "canc"
     if "número de hipotecas" in n: return "num"
     if "importe de hipotecas" in n: return "imp"
-    if "cancelada"           in n: return "canc"
     return None
 
 def indexar(dades, geo):
