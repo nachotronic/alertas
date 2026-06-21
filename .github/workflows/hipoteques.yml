@@ -68,13 +68,11 @@ jobs:
         if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
         run: python3 transform_hipoteques.py
 
-      - name: Desar Excel com a artefacte
+      - name: Copiar Excel a docs
         if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
-        with:
-          name: hipoteques-${{ github.run_id }}
-          path: hipoteques_idescat.xlsx
-          retention-days: 90
+        run: |
+          mkdir -p docs
+          cp hipoteques_idescat.xlsx docs/hipoteques.xlsx
 
       - name: Actualitzar status.json
         if: steps.calendari.outputs.toca == 'true' || github.event_name == 'workflow_dispatch'
@@ -101,6 +99,12 @@ jobs:
               entrada = {"id": "hipoteques"}
               status["fonts"].append(entrada)
 
+          # Extreure usuari i nom repo per construir URL de Pages
+          parts = repo.split("/")
+          usuari = parts[0] if len(parts) > 0 else ""
+          nom_repo = parts[1] if len(parts) > 1 else ""
+          pages_url = f"https://{usuari}.github.io/{nom_repo}"
+
           entrada.update({
               "nom":           "Hipoteques mensuals",
               "font":          "INE",
@@ -108,7 +112,7 @@ jobs:
               "estat":         "actualitzada",
               "darrera_pub":   ara,
               "incorporat":    False,
-              "artefacte_url": f"https://github.com/{repo}/actions/runs/{run_id}",
+              "artefacte_url": f"{pages_url}/hipoteques.xlsx",
               "font_url":      "https://www.ine.es/jaxiT3/Tabla.htm?t=13896",
           })
 
@@ -126,7 +130,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/status.json
+          git add docs/status.json docs/hipoteques.xlsx
           git diff --staged --quiet || git commit -m "Update status: hipoteques $(date -u +%Y-%m-%d)"
           git push
 
