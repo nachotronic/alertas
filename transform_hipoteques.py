@@ -109,6 +109,8 @@ def construir_files(index_const, index_canc, geo_text):
     print(f"  Períodes trobats: {periodes[:3]}")
     clau_test = ('Total fincas', 'Número de hipotecas')
     print(f"  Mostra Total fincas/Número: {dict(list(index_const.get(clau_test, {}).items())[:3])}")
+clau_canc = ('Total fincas', 'cancelada')
+    print(f"  Mostra cancel·lades: {dict(list(index_canc.get(clau_canc, {}).items())[:3])}")
 
     # Definir columnes en ordre
     columnes = []
