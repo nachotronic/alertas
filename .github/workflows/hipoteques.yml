@@ -2,7 +2,7 @@ name: Hipoteques INE
 
 on:
   schedule:
-    - cron: '0,5,10,15,20,25,30,35,40,45,50,55 8 * * *'
+    - cron: '0,5,10,15,20,25,30,35,40,45,50,55 8,9,10 * * *'
   workflow_dispatch:
 
 permissions:
@@ -33,23 +33,18 @@ jobs:
           avui = datetime.date.today()
           toca = False
           proper_publicacio = None
+          calendari_ok = False
 
           try:
               url = "https://www.ine.es/dynt3/Calendario/calenHTML.htm"
               req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
               html = urllib.request.urlopen(req, timeout=15).read().decode("utf-8")
-
               mes_ca = {1:"Enero",2:"Febrero",3:"Marzo",4:"Abril",5:"Mayo",6:"Junio",
                         7:"Julio",8:"Agosto",9:"Septiembre",10:"Octubre",11:"Noviembre",12:"Diciembre"}
-
-              # Buscar la secció d'hipoteques i extreure totes les dates futures
+              mes_inv = {v: k for k, v in mes_ca.items()}
               seccio = re.search(r'Hipotecas Mensual.*?(?=\n- [A-Z])', html, re.DOTALL)
               if seccio:
-                  text = seccio.group(0)
-                  # Buscar totes les dates: dia | mes | any
-                  dates = re.findall(r'\|\s*(\d+)\s*\|\s*(\w+)\s*\|\s*(\d{4})', text)
-                  mes_inv = {v: k for k, v in mes_ca.items()}
-
+                  dates = re.findall(r'\|\s*(\d+)\s*\|\s*(\w+)\s*\|\s*(\d{4})', seccio.group(0))
                   dates_trobades = []
                   for dia, mes_str, any_str in dates:
                       mes_num = mes_inv.get(mes_str)
@@ -59,18 +54,50 @@ jobs:
                               dates_trobades.append(d)
                           except:
                               pass
-
                   dates_trobades.sort()
-
-                  # Pròxima data >= avui
                   futures = [d for d in dates_trobades if d >= avui]
                   if futures:
                       proper_publicacio = futures[0].isoformat()
                       toca = futures[0] == avui
-                      print(f"Pròxima publicació: {proper_publicacio} (avui={toca})")
-
+                      calendari_ok = True
+                      print(f"Calendari OK. Proxima: {proper_publicacio} (avui={toca})")
+                  else:
+                      print("Calendari llegit pero sense dates futures")
+              else:
+                  print("Seccio Hipotecas Mensual no trobada")
           except Exception as e:
               print(f"Error calendari: {e}")
+
+          if not calendari_ok:
+              print("Fallback: consultant API del INE...")
+              try:
+                  api_url = "https://servicios.ine.es/wstempus/js/ES/DATOS_TABLA/13896?nult=1"
+                  req2 = urllib.request.Request(api_url, headers={"User-Agent": "Mozilla/5.0"})
+                  dades = json.loads(urllib.request.urlopen(req2, timeout=30).read())
+                  periode_api = None
+                  for s in dades:
+                      if "Total Nacional" in s.get("Nombre", "") and "Numero" in s.get("Nombre", ""):
+                          d = s["Data"][0]
+                          periode_api = f"{d['Anyo']}{d['FK_Periodo']:02d}"
+                          break
+                  if periode_api:
+                      periode_status = None
+                      try:
+                          with open("docs/status.json") as f:
+                              status = json.load(f)
+                          for font in status.get("fonts", []):
+                              if font["id"] == "hipoteques":
+                                  periode_status = font.get("darrer_periode")
+                                  break
+                      except:
+                          pass
+                      if periode_api != periode_status:
+                          toca = True
+                          print(f"Fallback: nou periode ({periode_api} != {periode_status})")
+                      else:
+                          print(f"Fallback: cap canvi ({periode_api})")
+              except Exception as e2:
+                  print(f"Error fallback: {e2}")
 
           with open(os.environ["GITHUB_OUTPUT"], "a") as f:
               f.write(f"toca={'true' if toca else 'false'}\n")
