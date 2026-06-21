@@ -10,22 +10,22 @@ body { font-family: system-ui, sans-serif; background: #f5f5f3; color: #1a1a1a; 
 header { background: #1F3864; color: white; padding: 1.25rem 2rem; display: flex; align-items: center; justify-content: space-between; }
 header h1 { font-size: 16px; font-weight: 500; }
 header span { font-size: 12px; opacity: 0.7; }
-.container { max-width: 960px; margin: 2rem auto; padding: 0 1.5rem; }
+.container { max-width: 1000px; margin: 2rem auto; padding: 0 1.5rem; }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.5rem; }
 .stat { background: white; border-radius: 8px; padding: 1rem; border: 1px solid #e5e5e5; }
 .stat .n { font-size: 24px; font-weight: 600; }
 .stat .l { font-size: 12px; color: #666; margin-top: 3px; }
 .card { background: white; border-radius: 8px; border: 1px solid #e5e5e5; overflow: hidden; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
 th { padding: 10px 16px; text-align: left; font-weight: 500; color: #666; font-size: 12px; border-bottom: 1px solid #eee; background: #fafafa; }
-td { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+td { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
 tr:last-child td { border-bottom: none; }
-.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 500; }
+.badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 500; white-space: nowrap; }
 .badge.actualitzada { background: #e8f5e0; color: #3a6b10; }
-.badge.pendent     { background: #fff3e0; color: #8a5000; }
-.badge.comprovant  { background: #e8f0fe; color: #1a56b0; }
-.badge.ok          { background: #f0f0f0; color: #555; }
-.badge.error       { background: #fde8e8; color: #b00020; }
+.badge.pendent      { background: #fff3e0; color: #8a5000; }
+.badge.comprovant   { background: #e8f0fe; color: #1a56b0; }
+.badge.ok           { background: #f0f0f0; color: #555; }
+.badge.error        { background: #fde8e8; color: #b00020; }
 .dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 .dot.actualitzada { background: #4caf50; }
 .dot.pendent      { background: #ff9800; }
@@ -33,14 +33,17 @@ tr:last-child td { border-bottom: none; }
 .dot.ok           { background: #999; }
 .dot.error        { background: #f44336; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-.btn { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; text-decoration: none; color: #333; display: inline-flex; align-items: center; gap: 4px; }
+.btn { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid #ddd; background: white; cursor: pointer; text-decoration: none; color: #333; display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; }
 .btn:hover { background: #f5f5f5; }
 .btn.incorporar { border-color: #4caf50; color: #3a6b10; }
 .btn.incorporar:hover { background: #e8f5e0; }
 .btn.accio { border-color: #2563eb; color: #1a56b0; }
-.btn.accio:hover { background: #e8f0fe; }
-.info-petit { font-size: 11px; color: #888; margin-top: 3px; }
-.empty { text-align: center; padding: 3rem; color: #999; font-size: 14px; }
+.nom { font-weight: 500; font-size: 13px; }
+.sub { font-size: 11px; color: #999; margin-top: 2px; }
+.desc { font-size: 11px; color: #555; margin-top: 4px; line-height: 1.4; }
+.data-pub { font-size: 13px; font-weight: 500; }
+.data-sub { font-size: 11px; color: #999; margin-top: 2px; }
+.empty { text-align: center; padding: 3rem; color: #999; }
 </style>
 </head>
 <body>
@@ -51,18 +54,18 @@ tr:last-child td { border-bottom: none; }
 <div class="container">
   <div class="stats">
     <div class="stat"><div class="n" id="n-actualitzada" style="color:#3a6b10">—</div><div class="l">Actualitzades</div></div>
-    <div class="stat"><div class="n" id="n-comprovant"  style="color:#1a56b0">—</div><div class="l">Comprovant</div></div>
-    <div class="stat"><div class="n" id="n-pendent"     style="color:#8a5000">—</div><div class="l">Pendents d'incorporar</div></div>
-    <div class="stat"><div class="n" id="n-ok"          style="color:#555">—</div><div class="l">Sense canvis</div></div>
+    <div class="stat"><div class="n" id="n-comprovant"   style="color:#1a56b0">—</div><div class="l">Comprovant</div></div>
+    <div class="stat"><div class="n" id="n-pendent"      style="color:#8a5000">—</div><div class="l">Pendents</div></div>
+    <div class="stat"><div class="n" id="n-ok"           style="color:#555">—</div><div class="l">Sense canvis</div></div>
   </div>
   <div class="card">
     <table>
       <thead>
         <tr>
-          <th style="width:28%">Font / sèrie</th>
-          <th style="width:15%">Estat</th>
-          <th style="width:20%">Darrera actualització</th>
-          <th style="width:37%">Accions</th>
+          <th style="width:28%">Font</th>
+          <th style="width:16%">Pròxima pub.</th>
+          <th style="width:14%">Estat</th>
+          <th style="width:42%">Accions</th>
         </tr>
       </thead>
       <tbody id="tbody"><tr><td colspan="4" class="empty">Carregant...</td></tr></tbody>
@@ -71,12 +74,16 @@ tr:last-child td { border-bottom: none; }
   <p style="margin-top:1rem;font-size:12px;color:#999" id="peu"></p>
 </div>
 <script>
-function fmt(iso) {
+function fmtData(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('ca-ES', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  return new Date(iso).toLocaleDateString('ca-ES', {day:'2-digit', month:'2-digit', year:'numeric'});
+}
+function fmtHora(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleTimeString('ca-ES', {hour:'2-digit', minute:'2-digit'});
 }
 function badge(estat) {
-  const labels = {actualitzada:'Actualitzada',pendent:'Pendent',comprovant:'Comprovant',ok:'Sense canvis',error:'Error'};
+  const labels = {actualitzada:'Actualitzada', pendent:'Pendent', comprovant:'Comprovant', ok:'Sense canvis', error:'Error'};
   return `<span class="badge ${estat}"><span class="dot ${estat}"></span>${labels[estat]||estat}</span>`;
 }
 function marcarIncorporat(id) {
@@ -84,6 +91,15 @@ function marcarIncorporat(id) {
   o[id] = true;
   sessionStorage.setItem('inc', JSON.stringify(o));
   render();
+}
+function diesPerA(iso) {
+  if (!iso) return null;
+  const diff = new Date(iso) - new Date();
+  const dies = Math.ceil(diff / 86400000);
+  if (dies < 0) return 'ahir o abans';
+  if (dies === 0) return 'avui';
+  if (dies === 1) return 'demà';
+  return `en ${dies} dies`;
 }
 async function render() {
   const overrides = JSON.parse(sessionStorage.getItem('inc')||'{}');
@@ -95,8 +111,16 @@ async function render() {
     document.getElementById('tbody').innerHTML='<tr><td colspan="4" class="empty">No s\'ha pogut carregar status.json</td></tr>';
     return;
   }
-  const fonts = data.fonts || [];
-  const c = {actualitzada:0,pendent:0,comprovant:0,ok:0,error:0};
+
+  const fonts = (data.fonts || []).slice().sort((a, b) => {
+    // Ordenar per pròxima publicació (les més properes primer, les null al final)
+    if (!a.proper_publicacio && !b.proper_publicacio) return 0;
+    if (!a.proper_publicacio) return 1;
+    if (!b.proper_publicacio) return -1;
+    return new Date(a.proper_publicacio) - new Date(b.proper_publicacio);
+  });
+
+  const c = {actualitzada:0, pendent:0, comprovant:0, ok:0, error:0};
   let html = fonts.length === 0 ? '<tr><td colspan="4" class="empty">Cap font configurada encara.</td></tr>' : '';
 
   for (const f of fonts) {
@@ -105,35 +129,40 @@ async function render() {
     if (inc && estat === 'actualitzada') estat = 'pendent';
     c[estat] = (c[estat]||0) + 1;
 
-    // Info extra segons estat
-    let info = '';
+    // Data publicació
+    const dataPub = f.proper_publicacio
+      ? `<div class="data-pub">${fmtData(f.proper_publicacio)}</div><div class="data-sub">${diesPerA(f.proper_publicacio)}</div>`
+      : '<span style="color:#bbb;font-size:12px">—</span>';
+
+    // Estat extra info
+    let estatExtra = '';
     if (estat === 'comprovant') {
-      info = `<div class="info-petit">Intent ${f.intents||1} · proper: ${fmt(f.proper_intent)}</div>`;
-    } else if (estat === 'actualitzada' || estat === 'pendent') {
-      info = f.darrer_periode ? `<div class="info-petit">Últim període: ${f.darrer_periode}</div>` : '';
+      estatExtra = `<div style="font-size:11px;color:#888;margin-top:3px">Intent ${f.intents||1} · ${fmtHora(f.proper_intent)}</div>`;
+    } else if (f.darrer_periode) {
+      estatExtra = `<div style="font-size:11px;color:#888;margin-top:3px">Últim: ${f.darrer_periode}</div>`;
     }
 
     // Accions
-    let accions = '';
+    let accions = `<div style="font-size:11px;color:#555;line-height:1.4;margin-bottom:4px">${f.descripcio||''}</div>`;
     if ((estat === 'actualitzada' || estat === 'pendent') && f.artefacte_url) {
-      accions = `<a class="btn" href="${f.artefacte_url}?v=${Date.now()}" download>⬇ Baixar Excel</a>`;
+      accions += `<a class="btn" href="${f.artefacte_url}?v=${Date.now()}" download>⬇ Baixar Excel</a>`;
       if (!inc) {
-        accions += ` <button class="btn incorporar" onclick="marcarIncorporat('${f.id}')">✓ Marcar incorporat</button>`;
+        accions += ` <button class="btn incorporar" onclick="marcarIncorporat('${f.id}')">✓ Incorporat</button>`;
       } else {
-        accions += ` <span style="font-size:11px;color:#3a6b10">✓ Incorporat</span>`;
+        accions += ` <span style="font-size:11px;color:#3a6b10;margin-left:4px">✓ Incorporat</span>`;
       }
     } else if (estat === 'comprovant') {
-      accions = `<a class="btn accio" href="https://github.com/${data.repo||''}/actions" target="_blank">↗ Veure Actions</a>`;
+      accions += `<a class="btn accio" href="https://github.com/${data.repo||''}/actions" target="_blank">↗ Veure procés</a>`;
     }
 
     html += `<tr>
       <td>
-        <div style="font-weight:500">${f.nom}</div>
-        <div style="font-size:11px;color:#999;margin-top:2px">${f.font} · ${f.tipus==='automatica'?'↻ automàtica':'↑ manual'}</div>
+        <div class="nom">${f.nom}</div>
+        <div class="sub">${f.font} · ${f.tipus==='automatica'?'↻ automàtica':'↑ manual'}</div>
       </td>
-      <td>${badge(estat)}${info}</td>
-      <td style="font-size:12px;color:#666">${fmt(f.darrera_pub||f.darrera_comprovacio)}</td>
-      <td style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${accions||'—'}</td>
+      <td>${dataPub}</td>
+      <td>${badge(estat)}${estatExtra}</td>
+      <td>${accions}</td>
     </tr>`;
   }
 
@@ -142,10 +171,10 @@ async function render() {
     document.getElementById('n-'+k).textContent = c[k]||0;
   });
   document.getElementById('ts').textContent = new Date().toLocaleTimeString('ca-ES');
-  document.getElementById('peu').textContent = `${fonts.length} font${fonts.length!==1?'s':''} configurada${fonts.length!==1?'s':''}`;
+  document.getElementById('peu').textContent = `${fonts.length} font${fonts.length!==1?'s':''} · refresc cada 30s`;
 }
 render();
-setInterval(render, 30000); // refresca cada 30s
+setInterval(render, 30000);
 </script>
 </body>
 </html>
