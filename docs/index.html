@@ -11,6 +11,8 @@ header { background: #3a3a3a; color: white; padding: 1.25rem 2rem; display: flex
 header h1 { font-size: 15px; font-weight: bold; letter-spacing: 0.01em; }
 header span { font-size: 11px; opacity: 0.6; }
 .container { max-width: 1000px; margin: 1.5rem auto; padding: 0 1.5rem; }
+.avís { background: #fdf8e8; border: 1px solid #e8d87a; border-radius: 4px; padding: 8px 14px; font-size: 11px; color: #7a6000; margin-bottom: 12px; display: none; }
+.avís.visible { display: block; }
 .card { background: white; border-radius: 4px; border: 1px solid #ddd; overflow: hidden; }
 table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
 th { padding: 9px 14px; text-align: left; font-weight: bold; color: #444; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #8B1A1A; background: #f7f7f7; }
@@ -50,6 +52,9 @@ tr:hover td { background: #fafaf8; }
   <span id="ts"></span>
 </header>
 <div class="container">
+  <div class="avís" id="avis-cache">
+    ⚠ L'Excel pot trigar 1-2 minuts a estar disponible després de la publicació. Si la descàrrega no és correcta, espereu uns instants i torneu-ho a intentar.
+  </div>
   <div class="card">
     <table>
       <thead>
@@ -105,6 +110,7 @@ function marcarIncorporat(id) {
   sessionStorage.setItem('inc', JSON.stringify(o));
   render();
 }
+
 async function render() {
   const overrides = JSON.parse(sessionStorage.getItem('inc')||'{}');
   let data;
@@ -115,13 +121,24 @@ async function render() {
     document.getElementById('tbody').innerHTML='<tr><td colspan="4" class="empty">No s\'ha pogut carregar status.json</td></tr>';
     return;
   }
+
   const fonts = (data.fonts || []).slice().sort((a, b) => {
     if (!a.proper_publicacio && !b.proper_publicacio) return 0;
     if (!a.proper_publicacio) return 1;
     if (!b.proper_publicacio) return -1;
     return new Date(a.proper_publicacio) - new Date(b.proper_publicacio);
   });
+
+  // Mostrar avís de caché si alguna font és pendent o comprovant
+  const hiHaPendent = fonts.some(f => {
+    const inc = overrides[f.id] || f.incorporat;
+    const estat = f.estat || 'incorporat';
+    return estat === 'pendent_descarrega' || estat === 'comprovant';
+  });
+  document.getElementById('avis-cache').classList.toggle('visible', hiHaPendent);
+
   let html = fonts.length === 0 ? '<tr><td colspan="4" class="empty">Cap font configurada.</td></tr>' : '';
+
   for (const f of fonts) {
     const inc = overrides[f.id] || f.incorporat;
     let estat = f.estat || 'incorporat';
@@ -150,6 +167,7 @@ async function render() {
     } else if (estat === 'comprovant') {
       accions += `<a class="btn" href="https://github.com/${data.repo||''}/actions" target="_blank">↗ Veure procés</a>`;
     }
+
     if (f.descripcio) {
       accions += `<div class="desc-font">${f.descripcio}</div>`;
     }
@@ -161,6 +179,7 @@ async function render() {
       <td>${accions}</td>
     </tr>`;
   }
+
   document.getElementById('tbody').innerHTML = html;
   document.getElementById('ts').textContent = new Date().toLocaleTimeString('ca-ES');
   document.getElementById('peu').textContent = `${fonts.length} font${fonts.length!==1?'s':''} configurada${fonts.length!==1?'s':''} · refresc automàtic cada 30s`;
