@@ -42,7 +42,6 @@ def fetch(taula, n):
     return json.loads(urllib.request.urlopen(req, timeout=30).read())
 
 def periode(d):
-    # Usar Anyo i FK_Periodo del INE (el timestamp pot donar mes incorrecte)
     return f"{d['Anyo']}{d['FK_Periodo']:02d}"
 
 def mesura(nom):
