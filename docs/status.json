@@ -1,4 +1,19 @@
 {
   "repo": "nachotronic/alertas",
-  "fonts": []
+  "fonts": [
+    {
+      "id": "hipoteques",
+      "nom": "Hipoteques mensuals",
+      "font": "INE",
+      "tipus": "automatica",
+      "estat": "actualitzada",
+      "darrera_pub": "2026-06-21T17:04:50Z",
+      "darrer_periode": "202603",
+      "incorporat": false,
+      "intents": 0,
+      "proper_intent": null,
+      "artefacte_url": "https://nachotronic.github.io/alertas/hipoteques.xlsx",
+      "font_url": "https://www.ine.es/jaxiT3/Tabla.htm?t=13896"
+    }
+  ]
 }
