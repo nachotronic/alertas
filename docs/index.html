@@ -88,12 +88,16 @@ function fmtHora(iso) {
 }
 function diesPerA(iso) {
   if (!iso) return null;
-  const diff = new Date(iso) - new Date();
-  const dies = Math.ceil(diff / 86400000);
-  if (dies < 0) return null;
-  if (dies === 0) return 'avui';
-  if (dies === 1) return 'demà';
-  return `en ${dies} dies`;
+  const ara = new Date();
+  const pub = new Date(iso);
+  // Comparar només dates, no hores
+  const avuiStr = ara.toISOString().substring(0, 10);
+  const pubStr  = pub.toISOString().substring(0, 10);
+  if (pubStr === avuiStr) return 'avui';
+  const diff = Math.ceil((pub - ara) / 86400000);
+  if (diff < 0) return null;
+  if (diff === 1) return 'demà';
+  return `en ${diff} dies`;
 }
 function badge(estat) {
   const labels = {
